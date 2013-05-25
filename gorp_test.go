@@ -2,7 +2,6 @@ package gorp
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	_ "github.com/lib/pq"
@@ -62,61 +61,6 @@ type WithStringPk struct {
 }
 
 type CustomStringType string
-
-type TypeConversionExample struct {
-	Id         int64
-	PersonJSON Person
-	Name       CustomStringType
-}
-
-type testTypeConverter struct{}
-
-func (me testTypeConverter) ToDb(val interface{}) (interface{}, error) {
-
-	switch t := val.(type) {
-	case Person:
-		b, err := json.Marshal(t)
-		if err != nil {
-			return "", err
-		}
-		return string(b), nil
-	case CustomStringType:
-		return string(t), nil
-	}
-
-	return val, nil
-}
-
-func (me testTypeConverter) FromDb(target interface{}) (CustomScanner, bool) {
-	switch target.(type) {
-	case *Person:
-		binder := func(holder, target interface{}) error {
-			s, ok := holder.(*string)
-			if !ok {
-				return errors.New("FromDb: Unable to convert Person to *string")
-			}
-			b := []byte(*s)
-			return json.Unmarshal(b, target)
-		}
-		return CustomScanner{new(string), target, binder}, true
-	case *CustomStringType:
-		binder := func(holder, target interface{}) error {
-			s, ok := holder.(*string)
-			if !ok {
-				return errors.New("FromDb: Unable to convert CustomStringType to *string")
-			}
-			st, ok := target.(*CustomStringType)
-			if !ok {
-				return errors.New(fmt.Sprint("FromDb: Unable to convert target to *CustomStringType: ", reflect.TypeOf(target)))
-			}
-			*st = CustomStringType(*s)
-			return nil
-		}
-		return CustomScanner{new(string), target, binder}, true
-	}
-
-	return CustomScanner{}, false
-}
 
 func (p *Person) PreInsert(s SqlExecutor) error {
 	p.Created = time.Now().UnixNano()
@@ -583,36 +527,6 @@ func TestWithIgnoredColumn(t *testing.T) {
 	}
 }
 
-func TestTypeConversionExample(t *testing.T) {
-	dbmap := initDbMap()
-	defer dbmap.DropTables()
-
-	p := Person{FName: "Bob", LName: "Smith"}
-	tc := &TypeConversionExample{-1, p, CustomStringType("hi")}
-	_insert(dbmap, tc)
-
-	expected := &TypeConversionExample{1, p, CustomStringType("hi")}
-	tc2 := _get(dbmap, TypeConversionExample{}, tc.Id).(*TypeConversionExample)
-	if !reflect.DeepEqual(expected, tc2) {
-		t.Errorf("tc2 %v != %v", expected, tc2)
-	}
-
-	tc2.Name = CustomStringType("hi2")
-	tc2.PersonJSON = Person{FName: "Jane", LName: "Doe"}
-	_update(dbmap, tc2)
-
-	expected = &TypeConversionExample{1, tc2.PersonJSON, CustomStringType("hi2")}
-	tc3 := _get(dbmap, TypeConversionExample{}, tc.Id).(*TypeConversionExample)
-	if !reflect.DeepEqual(expected, tc3) {
-		t.Errorf("tc3 %v != %v", expected, tc3)
-	}
-
-	if _del(dbmap, tc) != 1 {
-		t.Errorf("Did not delete row with Id: %d", tc.Id)
-	}
-
-}
-
 func TestVersionMultipleRows(t *testing.T) {
 	dbmap := initDbMap()
 	defer dbmap.DropTables()
@@ -758,8 +672,6 @@ func initDbMap() *DbMap {
 	dbmap.AddTableWithName(Invoice{}, "invoice_test").SetKeys(true, "Id")
 	dbmap.AddTableWithName(Person{}, "person_test").SetKeys(true, "Id")
 	dbmap.AddTableWithName(WithIgnoredColumn{}, "ignored_column_test").SetKeys(true, "Id")
-	dbmap.AddTableWithName(TypeConversionExample{}, "type_conv_test").SetKeys(true, "Id")
-	dbmap.TypeConverter = testTypeConverter{}
 	err := dbmap.CreateTables()
 	if err != nil {
 		panic(err)
