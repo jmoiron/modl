@@ -613,65 +613,6 @@ func TestTypeConversionExample(t *testing.T) {
 
 }
 
-func TestSelectVal(t *testing.T) {
-	dbmap := initDbMapNulls()
-	defer dbmap.DropTables()
-
-	bindVar := dbmap.Dialect.BindVar(0)
-
-	t1 := TableWithNull{Str: sql.NullString{"abc", true},
-		Int64:   sql.NullInt64{78, true},
-		Float64: sql.NullFloat64{32.2, true},
-		Bool:    sql.NullBool{true, true},
-		Bytes:   []byte("hi")}
-	_insert(dbmap, &t1)
-
-	// SelectInt
-	i64 := selectInt(dbmap, "select Int64 from TableWithNull where Str='abc'")
-	if i64 != 78 {
-		t.Errorf("int64 %d != 78", i64)
-	}
-	i64 = selectInt(dbmap, "select count(*) from TableWithNull")
-	if i64 != 1 {
-		t.Errorf("int64 count %d != 1", i64)
-	}
-	i64 = selectInt(dbmap, "select count(*) from TableWithNull where Str="+bindVar, "asdfasdf")
-	if i64 != 0 {
-		t.Errorf("int64 no rows %d != 0", i64)
-	}
-
-	// SelectNullInt
-	n := selectNullInt(dbmap, "select Int64 from TableWithNull where Str='notfound'")
-	if !reflect.DeepEqual(n, sql.NullInt64{0, false}) {
-		t.Errorf("nullint %v != 0,false", n)
-	}
-
-	n = selectNullInt(dbmap, "select Int64 from TableWithNull where Str='abc'")
-	if !reflect.DeepEqual(n, sql.NullInt64{78, true}) {
-		t.Errorf("nullint %v != 78, true", n)
-	}
-
-	// SelectStr
-	s := selectStr(dbmap, "select Str from TableWithNull where Int64="+bindVar, 78)
-	if s != "abc" {
-		t.Errorf("s %s != abc", s)
-	}
-	s = selectStr(dbmap, "select Str from TableWithNull where Str='asdfasdf'")
-	if s != "" {
-		t.Errorf("s no rows %s != ''", s)
-	}
-
-	// SelectNullStr
-	ns := selectNullStr(dbmap, "select Str from TableWithNull where Int64="+bindVar, 78)
-	if !reflect.DeepEqual(ns, sql.NullString{"abc", true}) {
-		t.Errorf("nullstr %v != abc,true", ns)
-	}
-	ns = selectNullStr(dbmap, "select Str from TableWithNull where Str='asdfasdf'")
-	if !reflect.DeepEqual(ns, sql.NullString{"", false}) {
-		t.Errorf("nullstr no rows %v != '',false", ns)
-	}
-}
-
 func TestVersionMultipleRows(t *testing.T) {
 	dbmap := initDbMap()
 	defer dbmap.DropTables()
@@ -899,42 +840,6 @@ func _get(dbmap *DbMap, i interface{}, keys ...interface{}) interface{} {
 	}
 
 	return obj
-}
-
-func selectInt(dbmap *DbMap, query string, args ...interface{}) int64 {
-	i64, err := SelectInt(dbmap, query, args...)
-	if err != nil {
-		panic(err)
-	}
-
-	return i64
-}
-
-func selectNullInt(dbmap *DbMap, query string, args ...interface{}) sql.NullInt64 {
-	i64, err := SelectNullInt(dbmap, query, args...)
-	if err != nil {
-		panic(err)
-	}
-
-	return i64
-}
-
-func selectStr(dbmap *DbMap, query string, args ...interface{}) string {
-	s, err := SelectStr(dbmap, query, args...)
-	if err != nil {
-		panic(err)
-	}
-
-	return s
-}
-
-func selectNullStr(dbmap *DbMap, query string, args ...interface{}) sql.NullString {
-	s, err := SelectNullStr(dbmap, query, args...)
-	if err != nil {
-		panic(err)
-	}
-
-	return s
 }
 
 func _rawexec(dbmap *DbMap, query string, args ...interface{}) sql.Result {
