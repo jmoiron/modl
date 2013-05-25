@@ -16,7 +16,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
 )
@@ -54,25 +53,6 @@ func (e OptimisticLockError) Error() string {
 	return fmt.Sprintf("gorp: OptimisticLockError no row found for table=%s keys=%v", e.TableName, e.Keys)
 }
 
-// The TypeConverter interface provides a way to map a value of one
-// type to another type when persisting to, or loading from, a database.
-//
-// Example use cases: Implement type converter to convert bool types to "y"/"n" strings,
-// or serialize a struct member as a JSON blob.
-type TypeConverter interface {
-	// ToDb converts val to another type. Called before INSERT/UPDATE operations
-	ToDb(val interface{}) (interface{}, error)
-
-	// FromDb returns a CustomScanner appropriate for this type. This will be used
-	// to hold values returned from SELECT queries.
-	//
-	// In particular the CustomScanner returned should implement a Binder
-	// function appropriate for the Go type you wish to convert the db value to
-	//
-	// If bool==false, then no custom scanner will be used for this field.
-	FromDb(target interface{}) (CustomScanner, bool)
-}
-
 // CustomScanner binds a database column value to a Go type
 type CustomScanner struct {
 	// After a row is scanned, Holder will contain the value from the database column.
@@ -91,29 +71,6 @@ type CustomScanner struct {
 // Bind is called automatically by gorp after Scan()
 func (me CustomScanner) Bind() error {
 	return me.Binder(me.Holder, me.Target)
-}
-
-// DbMap is the root gorp mapping object. Create one of these for each
-// database schema you wish to map.  Each DbMap contains a list of
-// mapped tables.
-//
-// Example:
-//
-//     dialect := gorp.MySQLDialect{"InnoDB", "UTF8"}
-//     dbmap := &gorp.DbMap{Db: db, Dialect: dialect}
-//
-type DbMap struct {
-	// Db handle to use with this map
-	Db *sql.DB
-
-	// Dialect implementation to use with this map
-	Dialect Dialect
-
-	TypeConverter TypeConverter
-
-	tables    []*TableMap
-	logger    *log.Logger
-	logPrefix string
 }
 
 // TableMap represents a mapping between a Go struct and a database table
@@ -203,13 +160,11 @@ type bindPlan struct {
 	autoIncrIdx int
 }
 
-func (plan bindPlan) createBindInstance(elem reflect.Value, conv TypeConverter) (bindInstance, error) {
+func (plan bindPlan) createBindInstance(elem reflect.Value) bindInstance {
 	bi := bindInstance{query: plan.query, autoIncrIdx: plan.autoIncrIdx, versField: plan.versField}
 	if plan.versField != "" {
 		bi.existingVersion = elem.FieldByName(plan.versField).Int()
 	}
-
-	var err error
 
 	for i := 0; i < len(plan.argFields); i++ {
 		k := plan.argFields[i]
@@ -221,12 +176,6 @@ func (plan bindPlan) createBindInstance(elem reflect.Value, conv TypeConverter) 
 			}
 		} else {
 			val := elem.FieldByName(k).Interface()
-			if conv != nil {
-				val, err = conv.ToDb(val)
-				if err != nil {
-					return bindInstance{}, err
-				}
-			}
 			bi.args = append(bi.args, val)
 		}
 	}
@@ -234,16 +183,10 @@ func (plan bindPlan) createBindInstance(elem reflect.Value, conv TypeConverter) 
 	for i := 0; i < len(plan.keyFields); i++ {
 		k := plan.keyFields[i]
 		val := elem.FieldByName(k).Interface()
-		if conv != nil {
-			val, err = conv.ToDb(val)
-			if err != nil {
-				return bindInstance{}, err
-			}
-		}
 		bi.keys = append(bi.keys, val)
 	}
 
-	return bi, nil
+	return bi
 }
 
 type bindInstance struct {
@@ -255,7 +198,7 @@ type bindInstance struct {
 	autoIncrIdx     int
 }
 
-func (t *TableMap) bindInsert(elem reflect.Value) (bindInstance, error) {
+func (t *TableMap) bindInsert(elem reflect.Value) bindInstance {
 	plan := t.insertPlan
 	if plan.query == "" {
 		plan.autoIncrIdx = -1
@@ -306,10 +249,10 @@ func (t *TableMap) bindInsert(elem reflect.Value) (bindInstance, error) {
 		t.insertPlan = plan
 	}
 
-	return plan.createBindInstance(elem, t.dbmap.TypeConverter)
+	return plan.createBindInstance(elem)
 }
 
-func (t *TableMap) bindUpdate(elem reflect.Value) (bindInstance, error) {
+func (t *TableMap) bindUpdate(elem reflect.Value) bindInstance {
 	plan := t.updatePlan
 	if plan.query == "" {
 
@@ -364,10 +307,10 @@ func (t *TableMap) bindUpdate(elem reflect.Value) (bindInstance, error) {
 		t.updatePlan = plan
 	}
 
-	return plan.createBindInstance(elem, t.dbmap.TypeConverter)
+	return plan.createBindInstance(elem)
 }
 
-func (t *TableMap) bindDelete(elem reflect.Value) (bindInstance, error) {
+func (t *TableMap) bindDelete(elem reflect.Value) bindInstance {
 	plan := t.deletePlan
 	if plan.query == "" {
 
@@ -410,7 +353,7 @@ func (t *TableMap) bindDelete(elem reflect.Value) (bindInstance, error) {
 		t.deletePlan = plan
 	}
 
-	return plan.createBindInstance(elem, t.dbmap.TypeConverter)
+	return plan.createBindInstance(elem)
 }
 
 func (t *TableMap) bindGet() bindPlan {
@@ -536,171 +479,6 @@ type SqlExecutor interface {
 		args ...interface{}) ([]interface{}, error)
 	query(query string, args ...interface{}) (*sql.Rows, error)
 	queryRow(query string, args ...interface{}) *sql.Row
-}
-
-// TraceOn turns on SQL statement logging for this DbMap.  After this is
-// called, all SQL statements will be sent to the logger.  If prefix is
-// a non-empty string, it will be written to the front of all logged
-// strings, which can aid in filtering log lines.
-//
-// Use TraceOn if you want to spy on the SQL statements that gorp
-// generates.
-func (m *DbMap) TraceOn(prefix string, logger *log.Logger) {
-	m.logger = logger
-	if prefix == "" {
-		m.logPrefix = prefix
-	} else {
-		m.logPrefix = fmt.Sprintf("%s ", prefix)
-	}
-}
-
-// TraceOff turns off tracing. It is idempotent.
-func (m *DbMap) TraceOff() {
-	m.logger = nil
-	m.logPrefix = ""
-}
-
-// AddTable registers the given interface type with gorp. The table name
-// will be given the name of the TypeOf(i).  You must call this function,
-// or AddTableWithName, for any struct type you wish to persist with
-// the given DbMap.
-//
-// This operation is idempotent. If i's type is already mapped, the
-// existing *TableMap is returned
-func (m *DbMap) AddTable(i interface{}) *TableMap {
-	return m.AddTableWithName(i, "")
-}
-
-// AddTableWithName has the same behavior as AddTable, but sets
-// table.TableName to name.
-func (m *DbMap) AddTableWithName(i interface{}, name string) *TableMap {
-	t := reflect.TypeOf(i)
-	if name == "" {
-		name = t.Name()
-	}
-
-	// check if we have a table for this type already
-	// if so, update the name and return the existing pointer
-	for i := range m.tables {
-		table := m.tables[i]
-		if table.gotype == t {
-			table.TableName = name
-			return table
-		}
-	}
-
-	tmap := &TableMap{gotype: t, TableName: name, dbmap: m}
-
-	n := t.NumField()
-	tmap.columns = make([]*ColumnMap, 0, n)
-	for i := 0; i < n; i++ {
-		f := t.Field(i)
-		columnName := f.Tag.Get("db")
-		if columnName == "" {
-			columnName = f.Name
-		}
-
-		cm := &ColumnMap{
-			ColumnName: columnName,
-			Transient:  columnName == "-",
-			fieldName:  f.Name,
-			gotype:     f.Type,
-		}
-		tmap.columns = append(tmap.columns, cm)
-		if cm.fieldName == "Version" {
-			tmap.version = tmap.columns[len(tmap.columns)-1]
-		}
-	}
-	m.tables = append(m.tables, tmap)
-
-	return tmap
-}
-
-// CreateTables iterates through TableMaps registered to this DbMap and
-// executes "create table" statements against the database for each.
-//
-// This is particularly useful in unit tests where you want to create
-// and destroy the schema automatically.
-func (m *DbMap) CreateTables() error {
-	return m.createTables(false)
-}
-
-// CreateTablesIfNotExists is similar to CreateTables, but starts
-// each statement with "create table if not exists" so that existing
-// tables do not raise errors
-func (m *DbMap) CreateTablesIfNotExists() error {
-	return m.createTables(true)
-}
-
-func (m *DbMap) createTables(ifNotExists bool) error {
-	var err error
-	for i := range m.tables {
-		table := m.tables[i]
-
-		create := "create table"
-		if ifNotExists {
-			create += " if not exists"
-		}
-		s := bytes.Buffer{}
-		s.WriteString(fmt.Sprintf("%s %s (", create, m.Dialect.QuoteField(table.TableName)))
-		x := 0
-		for _, col := range table.columns {
-			if !col.Transient {
-				if x > 0 {
-					s.WriteString(", ")
-				}
-				stype := m.Dialect.ToSqlType(col.gotype, col.MaxSize, col.isAutoIncr)
-				s.WriteString(fmt.Sprintf("%s %s", m.Dialect.QuoteField(col.ColumnName), stype))
-
-				if col.isPK {
-					s.WriteString(" not null")
-					if len(table.keys) == 1 {
-						s.WriteString(" primary key")
-					}
-				}
-				if col.Unique {
-					s.WriteString(" unique")
-				}
-				if col.isAutoIncr {
-					s.WriteString(fmt.Sprintf(" %s", m.Dialect.AutoIncrStr()))
-				}
-
-				x++
-			}
-		}
-		if len(table.keys) > 1 {
-			s.WriteString(", primary key (")
-			for x := range table.keys {
-				if x > 0 {
-					s.WriteString(", ")
-				}
-				s.WriteString(m.Dialect.QuoteField(table.keys[x].ColumnName))
-			}
-			s.WriteString(")")
-		}
-		s.WriteString(") ")
-		s.WriteString(m.Dialect.CreateTableSuffix())
-		s.WriteString(";")
-		_, err = m.Exec(s.String())
-		if err != nil {
-			break
-		}
-	}
-	return err
-}
-
-// DropTables iterates through TableMaps registered to this DbMap and
-// executes "drop table" statements against the database for each.
-func (m *DbMap) DropTables() error {
-	var err error
-	for i := range m.tables {
-		table := m.tables[i]
-		_, e := m.Exec(fmt.Sprintf("drop table %s;", m.Dialect.QuoteField(table.TableName)))
-		if e != nil {
-			err = e
-		}
-	}
-	return err
 }
 
 // Insert runs a SQL INSERT statement for each element in list.  List
@@ -1133,8 +911,6 @@ func rawselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
 		}
 	}
 
-	conv := m.TypeConverter
-
 	// Add results to one of these two slices.
 	var (
 		list       = make([]interface{}, 0)
@@ -1158,13 +934,6 @@ func rawselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
 		for x := range cols {
 			f := v.Elem().Field(colToFieldOffset[x])
 			target := f.Addr().Interface()
-			if conv != nil {
-				scanner, ok := conv.FromDb(target)
-				if ok {
-					target = scanner.Holder
-					custScan = append(custScan, scanner)
-				}
-			}
 			dest[x] = target
 		}
 
@@ -1269,19 +1038,11 @@ func get(m *DbMap, exec SqlExecutor, i interface{},
 	v := reflect.New(t)
 	dest := make([]interface{}, len(plan.argFields))
 
-	conv := m.TypeConverter
 	custScan := make([]CustomScanner, 0)
 
 	for x, fieldName := range plan.argFields {
 		f := v.Elem().FieldByName(fieldName)
 		target := f.Addr().Interface()
-		if conv != nil {
-			scanner, ok := conv.FromDb(target)
-			if ok {
-				target = scanner.Holder
-				custScan = append(custScan, scanner)
-			}
-		}
 		dest[x] = target
 	}
 
@@ -1324,10 +1085,7 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 			return -1, err
 		}
 
-		bi, err := table.bindDelete(elem)
-		if err != nil {
-			return -1, err
-		}
+		bi := table.bindDelete(elem)
 
 		res, err := exec.Exec(bi.query, bi.args...)
 		if err != nil {
@@ -1369,7 +1127,7 @@ func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 			return -1, err
 		}
 
-		bi, err := table.bindUpdate(elem)
+		bi := table.bindUpdate(elem)
 		if err != nil {
 			return -1, err
 		}
@@ -1417,7 +1175,7 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 			return err
 		}
 
-		bi, err := table.bindInsert(elem)
+		bi := table.bindInsert(elem)
 		if err != nil {
 			return err
 		}
