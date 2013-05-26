@@ -564,6 +564,8 @@ func TestWithStringPk(t *testing.T) {
 }
 
 func BenchmarkNativeCrud(b *testing.B) {
+	var err error
+
 	b.StopTimer()
 	dbmap := initDbMapBench()
 	defer dbmap.DropTables()
@@ -574,24 +576,44 @@ func BenchmarkNativeCrud(b *testing.B) {
 	update := "update invoice_test set Created=?, Updated=?, Memo=?, PersonId=? where Id=?"
 	delete := "delete from invoice_test where Id=?"
 
+	suffix := dbmap.Dialect.AutoIncrInsertSuffix(&ColumnMap{ColumnName: "Id"})
+	insert = ReBind(insert, dbmap.Dialect) + suffix
+	sel = ReBind(sel, dbmap.Dialect)
+	update = ReBind(update, dbmap.Dialect)
+	delete = ReBind(delete, dbmap.Dialect)
+
 	inv := &Invoice{0, 100, 200, "my memo", 0, false}
 
 	for i := 0; i < b.N; i++ {
-		res, err := dbmap.Db.Exec(insert, inv.Created, inv.Updated,
-			inv.Memo, inv.PersonId)
-		if err != nil {
-			panic(err)
-		}
+		if len(suffix) == 0 {
+			res, err := dbmap.Db.Exec(insert, inv.Created, inv.Updated, inv.Memo, inv.PersonId)
+			if err != nil {
+				panic(err)
+			}
 
-		newid, err := res.LastInsertId()
-		if err != nil {
-			panic(err)
+			newid, err := res.LastInsertId()
+			if err != nil {
+				panic(err)
+			}
+			inv.Id = newid
+		} else {
+			rows, err := dbmap.Db.Query(insert, inv.Created, inv.Updated, inv.Memo, inv.PersonId)
+			if err != nil {
+				panic(err)
+			}
+
+			if rows.Next() {
+				err = rows.Scan(&inv.Id)
+				if err != nil {
+					panic(err)
+				}
+			}
+			rows.Close()
+
 		}
-		inv.Id = newid
 
 		row := dbmap.Db.QueryRow(sel, inv.Id)
-		err = row.Scan(&inv.Id, &inv.Created, &inv.Updated, &inv.Memo,
-			&inv.PersonId)
+		err = row.Scan(&inv.Id, &inv.Created, &inv.Updated, &inv.Memo, &inv.PersonId)
 		if err != nil {
 			panic(err)
 		}
@@ -619,6 +641,7 @@ func BenchmarkGorpCrud(b *testing.B) {
 	b.StopTimer()
 	dbmap := initDbMapBench()
 	defer dbmap.DropTables()
+	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
 	b.StartTimer()
 
 	inv := &Invoice{0, 100, 200, "my memo", 0, true}

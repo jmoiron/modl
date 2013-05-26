@@ -573,6 +573,8 @@ func (m *DbMap) Select(i interface{}, query string, args ...interface{}) ([]inte
 	return hookedselect(m, m, i, query, args...)
 }
 
+// FIXME: this comment is wrong, query preparation is commented out
+
 // Exec runs an arbitrary SQL statement.  args represent the bind parameters.
 // This is equivalent to running:  Prepare(), Exec() using database/sql
 func (m *DbMap) Exec(query string, args ...interface{}) (sql.Result, error) {

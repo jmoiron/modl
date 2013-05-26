@@ -288,3 +288,18 @@ func (m MySQLDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, params 
 func (d MySQLDialect) QuoteField(f string) string {
 	return "`" + f + "`"
 }
+
+// Formats the bindvars in the query string (these are '?') for the dialect.
+func ReBind(query string, dialect Dialect) string {
+
+	binder := dialect.BindVar(0)
+	if binder == "?" {
+		return query
+	}
+
+	for i, j := 0, strings.Index(query, "?"); j >= 0; i++ {
+		query = strings.Replace(query, "?", dialect.BindVar(i), 1)
+		j = strings.Index(query, "?")
+	}
+	return query
+}
