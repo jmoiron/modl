@@ -87,6 +87,14 @@ type TableMap struct {
 	deletePlan bindPlan
 	getPlan    bindPlan
 	dbmap      *DbMap
+	// Cached capabilities for the struct mapped to this table
+	CanPreInsert  bool
+	CanPostInsert bool
+	CanPostGet    bool
+	CanPreUpdate  bool
+	CanPostUpdate bool
+	CanPreDelete  bool
+	CanPostDelete bool
 }
 
 // ResetSql removes cached insert/update/select/delete SQL strings
@@ -711,6 +719,10 @@ func hookedselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
 		return nil, err
 	}
 
+	// FIXME: should PostGet hooks be run on regular selects?  a PostGet
+	// hook has access to the object and the database, and I'd hate for
+	// a query to execute SQL on every row of a queryset.
+
 	// Determine where the results are: written to i, or returned in list
 	if t := toSliceType(i); t == nil {
 		for _, v := range list {
@@ -731,8 +743,7 @@ func hookedselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
 	return list, nil
 }
 
-func rawselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
-	args ...interface{}) ([]interface{}, error) {
+func rawselect(m *DbMap, exec SqlExecutor, i interface{}, query string, args ...interface{}) ([]interface{}, error) {
 	appendToSlice := false // Write results to i directly?
 
 	// get type for i, verifying it's a struct or a pointer-to-slice
@@ -955,27 +966,35 @@ func get(m *DbMap, exec SqlExecutor, i interface{},
 		}
 	}
 
-	err = runHook("PostGet", v, hookArg(exec))
-	if err != nil {
-		return nil, err
+	vi := v.Interface()
+
+	if table.CanPostGet {
+		err = vi.(PostGetter).PostGet(exec)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return v.Interface(), nil
+	return vi, nil
 }
 
 func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
-	hookarg := hookArg(exec)
-	count := int64(0)
+	var err error
+	var table *TableMap
+	var elem reflect.Value
+	var count int64
+
 	for _, ptr := range list {
-		table, elem, err := m.tableForPointer(ptr, true)
+		table, elem, err = m.tableForPointer(ptr, true)
 		if err != nil {
 			return -1, err
 		}
 
-		eptr := elem.Addr()
-		err = runHook("PreDelete", eptr, hookarg)
-		if err != nil {
-			return -1, err
+		if table.CanPreDelete {
+			err = ptr.(PreDeleter).PreDelete(exec)
+			if err != nil {
+				return -1, err
+			}
 		}
 
 		bi := table.bindDelete(elem)
@@ -984,6 +1003,7 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 		if err != nil {
 			return -1, err
 		}
+
 		rows, err := res.RowsAffected()
 		if err != nil {
 			return -1, err
@@ -996,9 +1016,11 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 
 		count += rows
 
-		err = runHook("PostDelete", eptr, hookarg)
-		if err != nil {
-			return -1, err
+		if table.CanPostDelete {
+			err = ptr.(PostDeleter).PostDelete(exec)
+			if err != nil {
+				return -1, err
+			}
 		}
 	}
 
@@ -1006,18 +1028,22 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 }
 
 func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
-	hookarg := hookArg(exec)
-	count := int64(0)
+	var err error
+	var table *TableMap
+	var elem reflect.Value
+	var count int64
+
 	for _, ptr := range list {
-		table, elem, err := m.tableForPointer(ptr, true)
+		table, elem, err = m.tableForPointer(ptr, true)
 		if err != nil {
 			return -1, err
 		}
 
-		eptr := elem.Addr()
-		err = runHook("PreUpdate", eptr, hookarg)
-		if err != nil {
-			return -1, err
+		if table.CanPreUpdate {
+			err = ptr.(PreUpdater).PreUpdate(exec)
+			if err != nil {
+				return -1, err
+			}
 		}
 
 		bi := table.bindUpdate(elem)
@@ -1046,26 +1072,33 @@ func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 
 		count += rows
 
-		err = runHook("PostUpdate", eptr, hookarg)
-		if err != nil {
-			return -1, err
+		if table.CanPostUpdate {
+			err = ptr.(PostUpdater).PostUpdate(exec)
+
+			if err != nil {
+				return -1, err
+			}
 		}
 	}
 	return count, nil
 }
 
 func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
-	hookarg := hookArg(exec)
+	var err error
+	var table *TableMap
+	var elem reflect.Value
+
 	for _, ptr := range list {
-		table, elem, err := m.tableForPointer(ptr, false)
+		table, elem, err = m.tableForPointer(ptr, false)
 		if err != nil {
 			return err
 		}
 
-		eptr := elem.Addr()
-		err = runHook("PreInsert", eptr, hookarg)
-		if err != nil {
-			return err
+		if table.CanPreInsert {
+			err = ptr.(PreInserter).PreInsert(exec)
+			if err != nil {
+				return err
+			}
 		}
 
 		bi := table.bindInsert(elem)
@@ -1092,9 +1125,11 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 			}
 		}
 
-		err = runHook("PostInsert", eptr, hookarg)
-		if err != nil {
-			return err
+		if table.CanPostInsert {
+			err = ptr.(PostInserter).PostInsert(exec)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

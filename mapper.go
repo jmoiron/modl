@@ -89,6 +89,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 	}
 
 	tmap := &TableMap{gotype: t, TableName: Name, dbmap: m}
+	tmap.setupHooks(i)
 
 	n := t.NumField()
 	tmap.columns = make([]*ColumnMap, 0, n)
