@@ -7,16 +7,18 @@ import (
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/ziutek/mymysql/godrv"
-	//"log"
+	"log"
 	"os"
 	"reflect"
 	"testing"
 	"time"
 )
 
+var _ = log.Fatal
+
 type Invoice struct {
 	Id       int64
-	Created  int64
+	Created  int64 `db:"date_created"`
 	Updated  int64
 	Memo     string
 	PersonId int64
@@ -102,7 +104,7 @@ func (p *Person) PostGet(s SqlExecutor) error {
 }
 
 type PersistentUser struct {
-	Key            int32
+	Key            int32 `db:"mykey"`
 	Id             string
 	PassedTraining bool
 }
@@ -121,8 +123,7 @@ func TestPersistentUser(t *testing.T) {
 	dbmap := newDbMap()
 	dbmap.Exec("drop table if exists PersistentUser")
 	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
-	table := dbmap.AddTable(PersistentUser{}).SetKeys(false, "Key")
-	table.ColMap("Key").Rename("mykey")
+	dbmap.AddTable(PersistentUser{}).SetKeys(false, "mykey")
 	err := dbmap.CreateTablesIfNotExists()
 	if err != nil {
 		panic(err)
@@ -135,7 +136,8 @@ func TestPersistentUser(t *testing.T) {
 	}
 
 	// prove we can pass a pointer into Get
-	pu2, err := dbmap.Get(pu, pu.Key)
+	pu2 := &PersistentUser{}
+	err = dbmap.Get(pu2, pu.Key)
 	if err != nil {
 		panic(err)
 	}
@@ -145,17 +147,17 @@ func TestPersistentUser(t *testing.T) {
 
 	arr, err := dbmap.Select(pu, "select * from PersistentUser")
 	if err != nil {
-		panic(err)
+		t.Error(err)
 	}
 	if !reflect.DeepEqual(pu, arr[0]) {
 		t.Errorf("%v!=%v", pu, arr[0])
 	}
 
 	// prove we can get the results back in a slice
-	var puArr []*PersistentUser
+	puArr := []*PersistentUser{}
 	_, err = dbmap.Select(&puArr, "select * from PersistentUser")
 	if err != nil {
-		panic(err)
+		t.Error(err)
 	}
 	if len(puArr) != 1 {
 		t.Errorf("Expected one persistentuser, found none")
@@ -205,6 +207,7 @@ func TestOverrideVersionCol(t *testing.T) {
 }
 
 func TestOptimisticLocking(t *testing.T) {
+	var err error
 	dbmap := initDbMap()
 	defer dbmap.DropTables()
 
@@ -219,13 +222,14 @@ func TestOptimisticLocking(t *testing.T) {
 		return
 	}
 
-	obj, err := dbmap.Get(Person{}, p1.Id)
+	p2 := Person{}
+	err = dbmap.Get(&p2, p1.Id)
 	if err != nil {
 		panic(err)
 	}
-	p2 := obj.(*Person)
 	p2.LName = "Edwards"
 	dbmap.Update(p2) // Version is now 2
+
 	if p2.Version != 2 {
 		t.Errorf("Update didn't incr Version: %d != %d", 2, p2.Version)
 	}
@@ -269,8 +273,8 @@ func TestNullValues(t *testing.T) {
 
 	// try to load it
 	expected := &TableWithNull{Id: 10}
-	obj := _get(dbmap, TableWithNull{}, 10)
-	t1 := obj.(*TableWithNull)
+	t1 := &TableWithNull{}
+	MustGet(dbmap, t1, 10)
 	if !reflect.DeepEqual(expected, t1) {
 		t.Errorf("%v != %v", expected, t1)
 	}
@@ -288,8 +292,7 @@ func TestNullValues(t *testing.T) {
 	expected.Bytes = t1.Bytes
 	_update(dbmap, t1)
 
-	obj = _get(dbmap, TableWithNull{}, 10)
-	t1 = obj.(*TableWithNull)
+	MustGet(dbmap, t1, 10)
 	if t1.Str.String != "hi" {
 		t.Errorf("%s != hi", t1.Str.String)
 	}
@@ -302,7 +305,7 @@ func TestColumnProps(t *testing.T) {
 	dbmap := newDbMap()
 	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
 	t1 := dbmap.AddTable(Invoice{}).SetKeys(true, "Id")
-	t1.ColMap("Created").Rename("date_created")
+	//t1.ColMap("Created").Rename("date_created")
 	t1.ColMap("Updated").SetTransient(true)
 	t1.ColMap("Memo").SetMaxSize(10)
 	t1.ColMap("PersonId").SetUnique(true)
@@ -316,15 +319,15 @@ func TestColumnProps(t *testing.T) {
 	// test transient
 	inv := &Invoice{0, 0, 1, "my invoice", 0, true}
 	_insert(dbmap, inv)
-	obj := _get(dbmap, Invoice{}, inv.Id)
-	inv = obj.(*Invoice)
-	if inv.Updated != 0 {
+	inv2 := Invoice{}
+	MustGet(dbmap, &inv2, inv.Id)
+	if inv2.Updated != 0 {
 		t.Errorf("Saved transient column 'Updated'")
 	}
 
 	// test max size
-	inv.Memo = "this memo is too long"
-	err = dbmap.Insert(inv)
+	inv2.Memo = "this memo is too long"
+	err = dbmap.Insert(inv2)
 	if err == nil {
 		t.Errorf("max size exceeded, but Insert did not fail.")
 	}
@@ -372,8 +375,7 @@ func TestHooks(t *testing.T) {
 		t.Errorf("p1.PostInsert() didn't run: %v", p1)
 	}
 
-	obj := _get(dbmap, Person{}, p1.Id)
-	p1 = obj.(*Person)
+	MustGet(dbmap, p1, p1.Id)
 	if p1.LName != "postget" {
 		t.Errorf("p1.PostGet() didn't run: %v", p1)
 	}
@@ -424,14 +426,15 @@ func TestTransaction(t *testing.T) {
 		panic(err)
 	}
 
-	obj, err := dbmap.Get(Invoice{}, inv1.Id)
+	obj := &Invoice{}
+	err = dbmap.Get(obj, inv1.Id)
 	if err != nil {
 		panic(err)
 	}
 	if !reflect.DeepEqual(inv1, obj) {
 		t.Errorf("%v != %v", inv1, obj)
 	}
-	obj, err = dbmap.Get(Invoice{}, inv2.Id)
+	err = dbmap.Get(obj, inv2.Id)
 	if err != nil {
 		panic(err)
 	}
@@ -472,8 +475,8 @@ func TestCrud(t *testing.T) {
 	}
 
 	// SELECT row
-	obj := _get(dbmap, Invoice{}, inv.Id)
-	inv2 := obj.(*Invoice)
+	inv2 := &Invoice{}
+	MustGet(dbmap, inv2, inv.Id)
 	if !reflect.DeepEqual(inv, inv2) {
 		t.Errorf("%v != %v", inv, inv2)
 	}
@@ -486,8 +489,8 @@ func TestCrud(t *testing.T) {
 	if count != 1 {
 		t.Errorf("update 1 != %d", count)
 	}
-	obj = _get(dbmap, Invoice{}, inv.Id)
-	inv2 = obj.(*Invoice)
+
+	MustGet(dbmap, inv2, inv.Id)
 	if !reflect.DeepEqual(inv, inv2) {
 		t.Errorf("%v != %v", inv, inv2)
 	}
@@ -500,8 +503,8 @@ func TestCrud(t *testing.T) {
 	}
 
 	// VERIFY deleted
-	obj = _get(dbmap, Invoice{}, inv.Id)
-	if obj != nil {
+	err := dbmap.Get(inv2, inv.Id)
+	if err != nil {
 		t.Errorf("Found invoice with id: %d after Delete()", inv.Id)
 	}
 }
@@ -513,17 +516,22 @@ func TestWithIgnoredColumn(t *testing.T) {
 	ic := &WithIgnoredColumn{-1, 0, 1}
 	_insert(dbmap, ic)
 	expected := &WithIgnoredColumn{0, 1, 1}
-	ic2 := _get(dbmap, WithIgnoredColumn{}, ic.Id).(*WithIgnoredColumn)
+
+	ic2 := &WithIgnoredColumn{}
+	MustGet(dbmap, ic2, ic.Id)
 
 	if !reflect.DeepEqual(expected, ic2) {
 		t.Errorf("%v != %v", expected, ic2)
 	}
+
 	if _del(dbmap, ic) != 1 {
 		t.Errorf("Did not delete row with Id: %d", ic.Id)
 		return
 	}
-	if _get(dbmap, WithIgnoredColumn{}, ic.Id) != nil {
-		t.Errorf("Found id: %d after Delete()", ic.Id)
+
+	err := dbmap.Get(ic2, ic.Id)
+	if err != nil {
+		t.Errorf("Found id: %d after Delete() (%#v)", ic.Id, ic2)
 	}
 }
 
@@ -651,14 +659,10 @@ func BenchmarkGorpCrud(b *testing.B) {
 			panic(err)
 		}
 
-		obj, err := dbmap.Get(Invoice{}, inv.Id)
+		inv2 := Invoice{}
+		err = dbmap.Get(&inv2, inv.Id)
 		if err != nil {
 			panic(err)
-		}
-
-		inv2, ok := obj.(*Invoice)
-		if !ok {
-			panic(fmt.Sprintf("expected *Invoice, got: %v", obj))
 		}
 
 		inv2.Created = 1000
@@ -716,7 +720,7 @@ func initDbMapNulls() *DbMap {
 
 func newDbMap() *DbMap {
 	dialect, driver := dialectAndDriver()
-	return &DbMap{Db: connect(driver), Dialect: dialect}
+	return NewDbMap(connect(driver), dialect)
 }
 
 func connect(driver string) *sql.DB {
@@ -768,13 +772,11 @@ func _del(dbmap *DbMap, list ...interface{}) int64 {
 	return count
 }
 
-func _get(dbmap *DbMap, i interface{}, keys ...interface{}) interface{} {
-	obj, err := dbmap.Get(i, keys...)
+func MustGet(dbmap *DbMap, i interface{}, keys ...interface{}) {
+	err := dbmap.Get(i, keys...)
 	if err != nil {
 		panic(err)
 	}
-
-	return obj
 }
 
 func _rawexec(dbmap *DbMap, query string, args ...interface{}) sql.Result {

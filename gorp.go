@@ -16,6 +16,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"reflect"
 	"strings"
 )
@@ -160,6 +161,8 @@ func (t *TableMap) SetVersionCol(field string) *ColumnMap {
 	return c
 }
 
+// A bindPlan saves a query type (insert, get, updated, delete) so it doesn't
+// have to be re-created every time it's executed.
 type bindPlan struct {
 	query       string
 	argFields   []string
@@ -431,14 +434,18 @@ type ColumnMap struct {
 	isAutoIncr bool
 }
 
+// This mapping should be known ahead of time, and this is the one case where
+// I think I want things to actually be done in the struct tags instead of
+// being changed at runtime where other systems then do not have access to them
+
 // Rename allows you to specify the column name in the table
 //
 // Example:  table.ColMap("Updated").Rename("date_updated")
 //
-func (c *ColumnMap) Rename(colname string) *ColumnMap {
-	c.ColumnName = colname
-	return c
-}
+//func (c *ColumnMap) Rename(colname string) *ColumnMap {
+//	c.ColumnName = colname
+//	return c
+//}
 
 // SetTransient allows you to mark the column as transient. If true
 // this column will be skipped when SQL statements are generated
@@ -468,7 +475,7 @@ func (c *ColumnMap) SetMaxSize(size int) *ColumnMap {
 // a call to Commit() or Rollback()
 type Transaction struct {
 	dbmap *DbMap
-	tx    *sql.Tx
+	tx    *sqlx.Tx
 }
 
 // SqlExecutor exposes gorp operations that can be run from Pre/Post
@@ -478,15 +485,15 @@ type Transaction struct {
 // See the DbMap function docs for each of the functions below for more
 // information.
 type SqlExecutor interface {
-	Get(i interface{}, keys ...interface{}) (interface{}, error)
+	Get(dest interface{}, keys ...interface{}) error
 	Insert(list ...interface{}) error
 	Update(list ...interface{}) (int64, error)
 	Delete(list ...interface{}) (int64, error)
 	Exec(query string, args ...interface{}) (sql.Result, error)
-	Select(i interface{}, query string,
-		args ...interface{}) ([]interface{}, error)
+	Select(i interface{}, query string, args ...interface{}) ([]interface{}, error)
 	query(query string, args ...interface{}) (*sql.Rows, error)
 	queryRow(query string, args ...interface{}) *sql.Row
+	queryRowx(query string, args ...interface{}) *sqlx.Row
 }
 
 // Insert runs a SQL INSERT statement for each element in list.  List
@@ -546,8 +553,8 @@ func (m *DbMap) Delete(list ...interface{}) (int64, error) {
 //
 // Returns an error if SetKeys has not been called on the TableMap
 // Panics if any interface in the list has not been registered with AddTable
-func (m *DbMap) Get(i interface{}, keys ...interface{}) (interface{}, error) {
-	return get(m, m, i, keys...)
+func (m *DbMap) Get(dest interface{}, keys ...interface{}) error {
+	return get(m, m, dest, keys...)
 }
 
 // Select runs an arbitrary SQL query, binding the columns in the result
@@ -593,7 +600,7 @@ func (m *DbMap) Begin() (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Transaction{m, tx}, nil
+	return &Transaction{m, &sqlx.Tx{*tx}}, nil
 }
 
 func (m *DbMap) tableFor(t reflect.Type, checkPK bool) (*TableMap, error) {
@@ -643,6 +650,11 @@ func (m *DbMap) queryRow(query string, args ...interface{}) *sql.Row {
 	return m.Db.QueryRow(query, args...)
 }
 
+func (m *DbMap) queryRowx(query string, args ...interface{}) *sqlx.Row {
+	m.trace(query, args)
+	return m.Dbx.QueryRowx(query, args...)
+}
+
 func (m *DbMap) query(query string, args ...interface{}) (*sql.Rows, error) {
 	m.trace(query, args)
 	return m.Db.Query(query, args...)
@@ -672,8 +684,8 @@ func (t *Transaction) Delete(list ...interface{}) (int64, error) {
 }
 
 // Same behavior as DbMap.Get(), but runs in a transaction
-func (t *Transaction) Get(i interface{}, keys ...interface{}) (interface{}, error) {
-	return get(t.dbmap, t, i, keys...)
+func (t *Transaction) Get(dest interface{}, keys ...interface{}) error {
+	return get(t.dbmap, t, dest, keys...)
 }
 
 // Same behavior as DbMap.Select(), but runs in a transaction
@@ -704,6 +716,11 @@ func (t *Transaction) Rollback() error {
 func (t *Transaction) queryRow(query string, args ...interface{}) *sql.Row {
 	t.dbmap.trace(query, args)
 	return t.tx.QueryRow(query, args...)
+}
+
+func (t *Transaction) queryRowx(query string, args ...interface{}) *sqlx.Row {
+	t.dbmap.trace(query, args)
+	return t.tx.QueryRowx(query, args...)
 }
 
 func (t *Transaction) query(query string, args ...interface{}) (*sql.Rows, error) {
@@ -745,6 +762,21 @@ func hookedselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
 	return list, nil
 }
 
+func toType(i interface{}) (reflect.Type, error) {
+	t := reflect.TypeOf(i)
+
+	// If a Pointer to a type, follow
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	if t.Kind() != reflect.Struct {
+		return nil, errors.New("Cannot select into non-struct type.")
+	}
+	return t, nil
+
+}
+
 func rawselect(m *DbMap, exec SqlExecutor, i interface{}, query string, args ...interface{}) ([]interface{}, error) {
 	appendToSlice := false // Write results to i directly?
 
@@ -762,6 +794,7 @@ func rawselect(m *DbMap, exec SqlExecutor, i interface{}, query string, args ...
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	// Fetch the column names as returned from db
@@ -912,72 +945,33 @@ func toSliceType(i interface{}) reflect.Type {
 	return t
 }
 
-func toType(i interface{}) (reflect.Type, error) {
-	t := reflect.TypeOf(i)
+func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) error {
 
-	// If a Pointer to a type, follow
-	for t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-
-	if t.Kind() != reflect.Struct {
-		return nil, errors.New(fmt.Sprintf("gorp: Cannot SELECT into non-struct type: %v", reflect.TypeOf(i)))
-	}
-	return t, nil
-}
-
-func get(m *DbMap, exec SqlExecutor, i interface{},
-	keys ...interface{}) (interface{}, error) {
-
-	t, err := toType(i)
+	t, err := sqlx.BaseStructType(reflect.TypeOf(dest))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	table, err := m.tableFor(t, true)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	plan := table.bindGet()
-
-	v := reflect.New(t)
-	dest := make([]interface{}, len(plan.argFields))
-
-	custScan := make([]CustomScanner, 0)
-
-	for x, fieldName := range plan.argFields {
-		f := v.Elem().FieldByName(fieldName)
-		target := f.Addr().Interface()
-		dest[x] = target
-	}
-
-	row := exec.queryRow(plan.query, keys...)
-	err = row.Scan(dest...)
+	row := exec.queryRowx(plan.query, keys...)
+	err = row.StructScan(dest)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			err = nil
-		}
-		return nil, err
+		return err
 	}
-
-	for _, c := range custScan {
-		err = c.Bind()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	vi := v.Interface()
 
 	if table.CanPostGet {
-		err = vi.(PostGetter).PostGet(exec)
+		err = dest.(PostGetter).PostGet(exec)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return vi, nil
+	return nil
 }
 
 func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
@@ -1157,14 +1151,15 @@ func lockError(m *DbMap, exec SqlExecutor, tableName string,
 	existingVer int64, elem reflect.Value,
 	keys ...interface{}) (int64, error) {
 
-	existing, err := get(m, exec, elem.Interface(), keys...)
+	dest := reflect.New(elem.Type())
+	err := get(m, exec, dest, keys...)
 	if err != nil {
 		return -1, err
 	}
 
 	ole := OptimisticLockError{tableName, keys, true, existingVer}
-	if existing == nil {
-		ole.RowExists = false
-	}
+	//if dest == nil {
+	//	ole.RowExists = false
+	//}
 	return -1, ole
 }
