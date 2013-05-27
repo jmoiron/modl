@@ -121,7 +121,7 @@ func TestCreateTablesIfNotExists(t *testing.T) {
 
 func TestPersistentUser(t *testing.T) {
 	dbmap := newDbMap()
-	dbmap.Exec("drop table if exists PersistentUser")
+	dbmap.Exec("drop table if exists persistentuser")
 	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
 	dbmap.AddTable(PersistentUser{}).SetKeys(false, "mykey")
 	err := dbmap.CreateTablesIfNotExists()
@@ -145,7 +145,7 @@ func TestPersistentUser(t *testing.T) {
 		t.Errorf("%v!=%v", pu, pu2)
 	}
 
-	arr, err := dbmap.Select(pu, "select * from PersistentUser")
+	arr, err := dbmap.Select(pu, "select * from persistentuser")
 	if err != nil {
 		t.Error(err)
 	}
@@ -155,7 +155,7 @@ func TestPersistentUser(t *testing.T) {
 
 	// prove we can get the results back in a slice
 	puArr := []*PersistentUser{}
-	_, err = dbmap.Select(&puArr, "select * from PersistentUser")
+	_, err = dbmap.Select(&puArr, "select * from persistentuser")
 	if err != nil {
 		t.Error(err)
 	}
@@ -187,15 +187,15 @@ func TestReturnsNonNilSlice(t *testing.T) {
 func TestOverrideVersionCol(t *testing.T) {
 	dbmap := initDbMap()
 	dbmap.DropTables()
-	t1 := dbmap.AddTable(InvoicePersonView{}).SetKeys(false, "InvoiceId", "PersonId")
+	t1 := dbmap.AddTable(InvoicePersonView{}).SetKeys(false, "invoiceid", "personid")
 	err := dbmap.CreateTables()
 
 	if err != nil {
 		panic(err)
 	}
 	defer dbmap.DropTables()
-	c1 := t1.SetVersionCol("LegacyVersion")
-	if c1.ColumnName != "LegacyVersion" {
+	c1 := t1.SetVersionCol("legacyversion")
+	if c1.ColumnName != "legacyversion" {
 		t.Errorf("Wrong col returned: %v", c1)
 	}
 
@@ -268,7 +268,7 @@ func TestNullValues(t *testing.T) {
 	defer dbmap.DropTables()
 
 	// insert a row directly
-	_rawexec(dbmap, "insert into TableWithNull values (10, null, "+
+	_rawexec(dbmap, "insert into tablewithnull values (10, null, "+
 		"null, null, null, null)")
 
 	// try to load it
@@ -685,7 +685,7 @@ func BenchmarkGorpCrud(b *testing.B) {
 func initDbMapBench() *DbMap {
 	dbmap := newDbMap()
 	dbmap.Db.Exec("drop table if exists invoice_test")
-	dbmap.AddTableWithName(Invoice{}, "invoice_test").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Invoice{}, "invoice_test").SetKeys(true, "id")
 	err := dbmap.CreateTables()
 	if err != nil {
 		panic(err)
@@ -696,9 +696,9 @@ func initDbMapBench() *DbMap {
 func initDbMap() *DbMap {
 	dbmap := newDbMap()
 	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
-	dbmap.AddTableWithName(Invoice{}, "invoice_test").SetKeys(true, "Id")
-	dbmap.AddTableWithName(Person{}, "person_test").SetKeys(true, "Id")
-	dbmap.AddTableWithName(WithIgnoredColumn{}, "ignored_column_test").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Invoice{}, "invoice_test").SetKeys(true, "id")
+	dbmap.AddTableWithName(Person{}, "person_test").SetKeys(true, "id")
+	dbmap.AddTableWithName(WithIgnoredColumn{}, "ignored_column_test").SetKeys(true, "id")
 	err := dbmap.CreateTables()
 	if err != nil {
 		panic(err)
@@ -710,7 +710,7 @@ func initDbMap() *DbMap {
 func initDbMapNulls() *DbMap {
 	dbmap := newDbMap()
 	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
-	dbmap.AddTable(TableWithNull{}).SetKeys(false, "Id")
+	dbmap.AddTable(TableWithNull{}).SetKeys(false, "id")
 	err := dbmap.CreateTables()
 	if err != nil {
 		panic(err)

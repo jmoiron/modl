@@ -116,7 +116,7 @@ func (t *TableMap) ResetSql() {
 func (t *TableMap) SetKeys(isAutoIncr bool, fieldNames ...string) *TableMap {
 	t.keys = make([]*ColumnMap, 0)
 	for _, name := range fieldNames {
-		colmap := t.ColMap(name)
+		colmap := t.ColMap(strings.ToLower(name))
 		colmap.isPK = true
 		colmap.isAutoIncr = isAutoIncr
 		t.keys = append(t.keys, colmap)
@@ -828,7 +828,7 @@ func rawselect(m *DbMap, exec SqlExecutor, i interface{}, query string, args ...
 			if fieldName == "-" {
 				continue
 			} else if fieldName == "" {
-				fieldName = field.Name
+				fieldName = strings.ToLower(field.Name)
 			}
 			if tableMapped {
 				colMap := colMapOrNil(table, fieldName)

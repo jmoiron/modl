@@ -97,7 +97,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 		f := t.Field(i)
 		columnName := f.Tag.Get("db")
 		if columnName == "" {
-			columnName = f.Name
+			columnName = strings.ToLower(f.Name)
 		}
 
 		cm := &ColumnMap{

@@ -2,7 +2,7 @@
 
 set -e
 
-export GORP_TEST_DSN="gorptest/gorptest/"
+export GORP_TEST_DSN="gorptest/gorptest/gorptest"
 export GORP_TEST_DIALECT="mysql"
 go test
 
