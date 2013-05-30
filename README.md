@@ -8,18 +8,26 @@ what's been removed.  For now, read the todo.md in this directory.
 
 To use the `test-all` script, set the following environment variables:
 
-   `GORP_MYSQL_DSN` - mysql connect DSN, like "gorptest/gorptest/gorptest"
-   `GORP_POSTGRES_DSN` - postgres connect DSN, eg:
-        "username=gorptest password=gorptest dbname=gorptest ssl-mode=disable"
-   `GORP_SQLITE_DSN` - sqlite connect DSN, which is a path to a sqlite file.
-   `GORP_FAIL_ON_SKIP` - optional, will fail if any DBs are skipped (for CI, mostly)
+```sh
+# mysql DSN, like "gorptest/gorptest/gorptest"
+GORP_MYSQL_DSN="dbname/username/password"
+
+# postgres DSN, like:
+GORP_POSTGRES_DSN="username=dbname password=pw dbname=dbname ssl-node=disable"
+
+# sqlite DSN, which is a path
+GORP_SQLITE_DSN="/dev/shm/gorptest.db"
+
+# optional, will fail the test if any DBs are skipped (for CI, mostly)
+GORP_FAIL_ON_SKIP=true
+```
 
 In addition to this, you can create an `environ` file in this directory which
-will be sourced and ignored by git.
+will be sourced and ignored by git.  You can continue to use the `GORP_TEST_DSN`
+and `GORP_TEST_DIALECT` variables if you want to manually run `go test` or if
+you want to run the benchmarks, as described below.
 
 The original README.md follows:
-
-
 
 
 ---------------------------------------------------------------------
