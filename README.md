@@ -4,8 +4,23 @@
 
 **Note**: This fork is under heavy development.  I plan to discuss the reasons
 for this fork and some of the guiding philosophies behind what's been added and
-what's been removed.  For now, read the todo.md in this directory.  The original
-README.md follows:
+what's been removed.  For now, read the todo.md in this directory.  
+
+To use the `test-all` script, set the following environment variables:
+
+   `GORP_MYSQL_DSN` - mysql connect DSN, like "gorptest/gorptest/gorptest"
+   `GORP_POSTGRES_DSN` - postgres connect DSN, eg:
+        "username=gorptest password=gorptest dbname=gorptest ssl-mode=disable"
+   `GORP_SQLITE_DSN` - sqlite connect DSN, which is a path to a sqlite file.
+   `GORP_FAIL_ON_SKIP` - optional, will fail if any DBs are skipped (for CI, mostly)
+
+In addition to this, you can create an `environ` file in this directory which
+will be sourced and ignored by git.
+
+The original README.md follows:
+
+
+
 
 ---------------------------------------------------------------------
 
