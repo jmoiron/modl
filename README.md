@@ -1,4 +1,13 @@
-# Go Relational Persistence #
+# Go Relational Persistence
+
+[![Build Status](https://drone.io/github.com/jmoiron/gorp/status.png)](https://drone.io/github.com/jmoiron/gorp/latest)
+
+**Note**: This fork is under heavy development.  I plan to discuss the reasons
+for this fork and some of the guiding philosophies behind what's been added and
+what's been removed.  For now, read the todo.md in this directory.  The original
+README.md follows:
+
+---------------------------------------------------------------------
 
 I hesitate to call gorp an ORM.  Go doesn't really have objects, at least 
 not in the classic Smalltalk/Java sense.  There goes the "O".  gorp doesn't 
