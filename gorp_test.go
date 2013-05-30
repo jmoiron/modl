@@ -222,13 +222,17 @@ func TestOptimisticLocking(t *testing.T) {
 		return
 	}
 
-	p2 := Person{}
-	err = dbmap.Get(&p2, p1.Id)
+	p2 := &Person{}
+	err = dbmap.Get(p2, p1.Id)
 	if err != nil {
 		panic(err)
 	}
 	p2.LName = "Edwards"
-	dbmap.Update(p2) // Version is now 2
+	_, err = dbmap.Update(p2) // Version is now 2
+
+	if err != nil {
+		panic(err)
+	}
 
 	if p2.Version != 2 {
 		t.Errorf("Update didn't incr Version: %d != %d", 2, p2.Version)
@@ -504,7 +508,7 @@ func TestCrud(t *testing.T) {
 
 	// VERIFY deleted
 	err := dbmap.Get(inv2, inv.Id)
-	if err != nil {
+	if err != sql.ErrNoRows {
 		t.Errorf("Found invoice with id: %d after Delete()", inv.Id)
 	}
 }
@@ -530,7 +534,7 @@ func TestWithIgnoredColumn(t *testing.T) {
 	}
 
 	err := dbmap.Get(ic2, ic.Id)
-	if err != nil {
+	if err != sql.ErrNoRows {
 		t.Errorf("Found id: %d after Delete() (%#v)", ic.Id, ic2)
 	}
 }

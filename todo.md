@@ -1,9 +1,11 @@
 Todo:
 
-- remove list return support
-- replace reflect struct filling with structscan
+- remove list & new struct support form in favor of filling pointers and slices
+- replace reflect struct filling with structscan from sqlx
 - cache/store as much reflect stuff as possible
 - add query builder
+- update docs with new examples and
+
 
 Almost Done:
 
@@ -11,3 +13,4 @@ Almost Done:
 
 Done:
 
+- use strings.ToLower on table & field names by default, aligning behavior w/ sqlx

@@ -960,6 +960,7 @@ func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) erro
 	plan := table.bindGet()
 	row := exec.queryRowx(plan.query, keys...)
 	err = row.StructScan(dest)
+
 	if err != nil {
 		return err
 	}
@@ -1006,8 +1007,7 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 		}
 
 		if rows == 0 && bi.existingVersion > 0 {
-			return lockError(m, exec, table.TableName,
-				bi.existingVersion, elem, bi.keys...)
+			return lockError(m, exec, table.TableName, bi.existingVersion, elem, bi.keys...)
 		}
 
 		count += rows
@@ -1147,19 +1147,17 @@ func runHook(name string, eptr reflect.Value, arg []reflect.Value) error {
 	return nil
 }
 
-func lockError(m *DbMap, exec SqlExecutor, tableName string,
-	existingVer int64, elem reflect.Value,
-	keys ...interface{}) (int64, error) {
+func lockError(m *DbMap, exec SqlExecutor, tableName string, existingVer int64, elem reflect.Value, keys ...interface{}) (int64, error) {
 
-	dest := reflect.New(elem.Type())
+	dest := reflect.New(elem.Type()).Interface()
 	err := get(m, exec, dest, keys...)
 	if err != nil {
 		return -1, err
 	}
 
 	ole := OptimisticLockError{tableName, keys, true, existingVer}
-	//if dest == nil {
-	//	ole.RowExists = false
-	//}
+	if dest == nil {
+		ole.RowExists = false
+	}
 	return -1, ole
 }
