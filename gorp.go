@@ -772,21 +772,6 @@ func hookedselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, ar
 	return nil
 }
 
-func toType(i interface{}) (reflect.Type, error) {
-	t := reflect.TypeOf(i)
-
-	// If a Pointer to a type, follow
-	for t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-
-	if t.Kind() != reflect.Struct {
-		return nil, errors.New("Cannot select into non-struct type.")
-	}
-	return t, nil
-
-}
-
 func rawselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args ...interface{}) error {
 	// FIXME: we need to verify dest is a pointer-to-slice
 
@@ -800,49 +785,6 @@ func rawselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args 
 	err = sqlx.StructScan(sqlrows, dest)
 	return err
 
-}
-
-func fieldByName(val reflect.Value, fieldName string) *reflect.Value {
-	// try to find field by exact match
-	f := val.FieldByName(fieldName)
-
-	if f != zeroVal {
-		return &f
-	}
-
-	// try to find by case insensitive match - only the Postgres driver
-	// seems to require this - in the case where columns are aliased in the sql
-	fieldNameL := strings.ToLower(fieldName)
-	fieldCount := val.NumField()
-	t := val.Type()
-	for i := 0; i < fieldCount; i++ {
-		sf := t.Field(i)
-		if strings.ToLower(sf.Name) == fieldNameL {
-			f := val.Field(i)
-			return &f
-		}
-	}
-
-	return nil
-}
-
-// toSliceType returns the element type of the given object, if the object is a
-// "*[]*Element". If not, returns nil.
-func toSliceType(i interface{}) reflect.Type {
-	t := reflect.TypeOf(i)
-	if t.Kind() != reflect.Ptr {
-		return nil
-	}
-	if t = t.Elem(); t.Kind() != reflect.Slice {
-		return nil
-	}
-	if t = t.Elem(); t.Kind() != reflect.Ptr {
-		return nil
-	}
-	if t = t.Elem(); t.Kind() != reflect.Struct {
-		return nil
-	}
-	return t
 }
 
 func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) error {
