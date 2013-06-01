@@ -207,3 +207,156 @@ func (m *DbMap) DropTables() error {
 	}
 	return err
 }
+
+// Insert runs a SQL INSERT statement for each element in list.  List
+// items must be pointers, because any interface whose TableMap has an
+// auto-increment PK will have its insert Id bound to the PK struct field,
+//
+// Hook functions PreInsert() and/or PostInsert() will be executed
+// before/after the INSERT statement if the interface defines them.
+func (m *DbMap) Insert(list ...interface{}) error {
+	return insert(m, m, list...)
+}
+
+// Update runs a SQL UPDATE statement for each element in list.  List
+// items must be pointers.
+//
+// Hook functions PreUpdate() and/or PostUpdate() will be executed
+// before/after the UPDATE statement if the interface defines them.
+//
+// Returns number of rows updated
+//
+// Returns an error if SetKeys has not been called on the TableMap or if
+// any interface in the list has not been registered with AddTable
+func (m *DbMap) Update(list ...interface{}) (int64, error) {
+	return update(m, m, list...)
+}
+
+// Delete runs a SQL DELETE statement for each element in list.  List
+// items must be pointers.
+//
+// Hook functions PreDelete() and/or PostDelete() will be executed
+// before/after the DELETE statement if the interface defines them.
+//
+// Returns number of rows deleted
+//
+// Returns an error if SetKeys has not been called on the TableMap or if
+// any interface in the list has not been registered with AddTable
+func (m *DbMap) Delete(list ...interface{}) (int64, error) {
+	return delete(m, m, list...)
+}
+
+// Get runs a SQL SELECT to fetch a single row from the table based on the
+// primary key(s)
+//
+//  i should be an empty value for the struct to load
+//  keys should be the primary key value(s) for the row to load.  If
+//  multiple keys exist on the table, the order should match the column
+//  order specified in SetKeys() when the table mapping was defined.
+//
+// Hook function PostGet() will be executed
+// after the SELECT statement if the interface defines them.
+//
+// Returns a pointer to a struct that matches or nil if no row is found
+//
+// Returns an error if SetKeys has not been called on the TableMap or
+// if any interface in the list has not been registered with AddTable
+func (m *DbMap) Get(dest interface{}, keys ...interface{}) error {
+	return get(m, m, dest, keys...)
+}
+
+// Select runs an arbitrary SQL query, binding the columns in the result
+// to fields on the struct specified by i.  args represent the bind
+// parameters for the SQL statement.
+//
+// Column names on the SELECT statement should be aliased to the field names
+// on the struct i. Returns an error if one or more columns in the result
+// do not match.  It is OK if fields on i are not part of the SQL
+// statement.
+//
+// Hook function PostGet() will be executed
+// after the SELECT statement if the interface defines them.
+//
+// Values are returned in one of two ways:
+// 1. If i is a struct or a pointer to a struct, returns a slice of pointers to
+//    matching rows of type i.
+// 2. If i is a pointer to a slice, the results will be appended to that slice
+//    and nil returned.
+//
+// i does NOT need to be registered with AddTable()
+func (m *DbMap) Select(i interface{}, query string, args ...interface{}) error {
+	return hookedselect(m, m, i, query, args...)
+}
+
+// Exec runs an arbitrary SQL statement.  args represent the bind parameters.
+// This is equivalent to running Exec() using database/sql
+func (m *DbMap) Exec(query string, args ...interface{}) (sql.Result, error) {
+	m.trace(query, args)
+	//stmt, err := m.Db.Prepare(query)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//fmt.Println("Exec", query, args)
+	return m.Db.Exec(query, args...)
+}
+
+// Begin starts a gorp Transaction
+func (m *DbMap) Begin() (*Transaction, error) {
+	tx, err := m.Dbx.Beginx()
+	if err != nil {
+		return nil, err
+	}
+	return &Transaction{m, tx}, nil
+}
+
+// Returns any matching tables for the interface i or nil if not found
+// If i is a slice, then the table is given for the base slice type
+func (m *DbMap) TableFor(i interface{}) *TableMap {
+	var t reflect.Type
+	v := reflect.ValueOf(i)
+start:
+	switch v.Kind() {
+	case reflect.Ptr:
+		// dereference pointer and try again;  we never want to store pointer
+		// types anywhere, that way we always know how to do lookups
+		v = v.Elem()
+		goto start
+	case reflect.Slice:
+		// if this is a slice of X's, we're interested in the type of X
+		t = v.Type().Elem()
+	default:
+		t = v.Type()
+	}
+	return m.TableForType(t)
+}
+
+// Returns any matching tables for the type t or nil if not found
+func (m *DbMap) TableForType(t reflect.Type) *TableMap {
+	for _, table := range m.tables {
+		if table.gotype == t {
+			return table
+		}
+	}
+	return nil
+}
+
+func (m *DbMap) queryRow(query string, args ...interface{}) *sql.Row {
+	m.trace(query, args)
+	return m.Db.QueryRow(query, args...)
+}
+
+func (m *DbMap) queryRowx(query string, args ...interface{}) *sqlx.Row {
+	m.trace(query, args)
+	return m.Dbx.QueryRowx(query, args...)
+}
+
+func (m *DbMap) query(query string, args ...interface{}) (*sql.Rows, error) {
+	m.trace(query, args)
+	return m.Db.Query(query, args...)
+}
+
+func (m *DbMap) trace(query string, args ...interface{}) {
+	if m.logger != nil {
+		m.logger.Printf("%s%s %v", m.logPrefix, query, args)
+	}
+}

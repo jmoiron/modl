@@ -21,7 +21,14 @@ import (
 	"strings"
 )
 
-var zeroVal reflect.Value
+type NoKeysErr struct {
+	Table *TableMap
+}
+
+func (n NoKeysErr) Error() string {
+	return fmt.Sprintf("Could not find keys for table %v", n.Table)
+}
+
 var versFieldConst = "[gorp_ver_field]"
 
 // OptimisticLockError is returned by Update() or Delete() if the
@@ -496,173 +503,6 @@ type SqlExecutor interface {
 	queryRowx(query string, args ...interface{}) *sqlx.Row
 }
 
-// Insert runs a SQL INSERT statement for each element in list.  List
-// items must be pointers.
-//
-// Any interface whose TableMap has an auto-increment primary key will
-// have its last insert id bound to the PK field on the struct.
-//
-// Hook functions PreInsert() and/or PostInsert() will be executed
-// before/after the INSERT statement if the interface defines them.
-//
-// Panics if any interface in the list has not been registered with AddTable
-func (m *DbMap) Insert(list ...interface{}) error {
-	return insert(m, m, list...)
-}
-
-// Update runs a SQL UPDATE statement for each element in list.  List
-// items must be pointers.
-//
-// Hook functions PreUpdate() and/or PostUpdate() will be executed
-// before/after the UPDATE statement if the interface defines them.
-//
-// Returns number of rows updated
-//
-// Returns an error if SetKeys has not been called on the TableMap
-// Panics if any interface in the list has not been registered with AddTable
-func (m *DbMap) Update(list ...interface{}) (int64, error) {
-	return update(m, m, list...)
-}
-
-// Delete runs a SQL DELETE statement for each element in list.  List
-// items must be pointers.
-//
-// Hook functions PreDelete() and/or PostDelete() will be executed
-// before/after the DELETE statement if the interface defines them.
-//
-// Returns number of rows deleted
-//
-// Returns an error if SetKeys has not been called on the TableMap
-// Panics if any interface in the list has not been registered with AddTable
-func (m *DbMap) Delete(list ...interface{}) (int64, error) {
-	return delete(m, m, list...)
-}
-
-// Get runs a SQL SELECT to fetch a single row from the table based on the
-// primary key(s)
-//
-//  i should be an empty value for the struct to load
-//  keys should be the primary key value(s) for the row to load.  If
-//  multiple keys exist on the table, the order should match the column
-//  order specified in SetKeys() when the table mapping was defined.
-//
-// Hook function PostGet() will be executed
-// after the SELECT statement if the interface defines them.
-//
-// Returns a pointer to a struct that matches or nil if no row is found
-//
-// Returns an error if SetKeys has not been called on the TableMap
-// Panics if any interface in the list has not been registered with AddTable
-func (m *DbMap) Get(dest interface{}, keys ...interface{}) error {
-	return get(m, m, dest, keys...)
-}
-
-// Select runs an arbitrary SQL query, binding the columns in the result
-// to fields on the struct specified by i.  args represent the bind
-// parameters for the SQL statement.
-//
-// Column names on the SELECT statement should be aliased to the field names
-// on the struct i. Returns an error if one or more columns in the result
-// do not match.  It is OK if fields on i are not part of the SQL
-// statement.
-//
-// Hook function PostGet() will be executed
-// after the SELECT statement if the interface defines them.
-//
-// Values are returned in one of two ways:
-// 1. If i is a struct or a pointer to a struct, returns a slice of pointers to
-//    matching rows of type i.
-// 2. If i is a pointer to a slice, the results will be appended to that slice
-//    and nil returned.
-//
-// i does NOT need to be registered with AddTable()
-func (m *DbMap) Select(i interface{}, query string, args ...interface{}) error {
-	return hookedselect(m, m, i, query, args...)
-}
-
-// Exec runs an arbitrary SQL statement.  args represent the bind parameters.
-// This is equivalent to running Exec() using database/sql
-func (m *DbMap) Exec(query string, args ...interface{}) (sql.Result, error) {
-	m.trace(query, args)
-	//stmt, err := m.Db.Prepare(query)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//fmt.Println("Exec", query, args)
-	return m.Db.Exec(query, args...)
-}
-
-// Begin starts a gorp Transaction
-func (m *DbMap) Begin() (*Transaction, error) {
-	tx, err := m.Dbx.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	return &Transaction{m, tx}, nil
-}
-
-func (m *DbMap) tableFor(t reflect.Type, checkPK bool) (*TableMap, error) {
-	table := tableOrNil(m, t)
-	if table == nil {
-		panic(fmt.Sprintf("No table found for type: %v", t.Name()))
-	}
-
-	if checkPK && len(table.keys) < 1 {
-		e := fmt.Sprintf("gorp: No keys defined for table: %s", table.TableName)
-		return nil, errors.New(e)
-	}
-
-	return table, nil
-}
-
-func tableOrNil(m *DbMap, t reflect.Type) *TableMap {
-	for i := range m.tables {
-		table := m.tables[i]
-		if table.gotype == t {
-			return table
-		}
-	}
-	return nil
-}
-
-func (m *DbMap) tableForPointer(ptr interface{}, checkPK bool) (*TableMap, reflect.Value, error) {
-	ptrv := reflect.ValueOf(ptr)
-	if ptrv.Kind() != reflect.Ptr {
-		e := fmt.Sprintf("gorp: passed non-pointer: %v (kind=%v)", ptr,
-			ptrv.Kind())
-		return nil, reflect.Value{}, errors.New(e)
-	}
-	elem := ptrv.Elem()
-	etype := reflect.TypeOf(elem.Interface())
-	t, err := m.tableFor(etype, checkPK)
-	if err != nil {
-		return nil, reflect.Value{}, err
-	}
-
-	return t, elem, nil
-}
-
-func (m *DbMap) queryRow(query string, args ...interface{}) *sql.Row {
-	m.trace(query, args)
-	return m.Db.QueryRow(query, args...)
-}
-
-func (m *DbMap) queryRowx(query string, args ...interface{}) *sqlx.Row {
-	m.trace(query, args)
-	return m.Dbx.QueryRowx(query, args...)
-}
-
-func (m *DbMap) query(query string, args ...interface{}) (*sql.Rows, error) {
-	m.trace(query, args)
-	return m.Db.Query(query, args...)
-}
-
-func (m *DbMap) trace(query string, args ...interface{}) {
-	if m.logger != nil {
-		m.logger.Printf("%s%s %v", m.logPrefix, query, args)
-	}
-}
-
 ///////////////
 
 // Same behavior as DbMap.Insert(), but runs in a transaction
@@ -729,18 +569,10 @@ func (t *Transaction) query(query string, args ...interface{}) (*sql.Rows, error
 
 func hookedselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args ...interface{}) error {
 
-	t, err := sqlx.BaseStructType(reflect.TypeOf(dest))
-	switch t.Kind() {
-	case reflect.Slice:
-		t, err = sqlx.BaseStructType(t.Elem())
-	}
-	if err != nil {
-		return err
-	}
+	// select can use arbitrary structs for join queries, so we needn't find a table
+	table := m.TableFor(dest)
 
-	table := tableOrNil(m, t)
-
-	err = rawselect(m, exec, dest, query, args...)
+	err := rawselect(m, exec, dest, query, args...)
 	if err != nil {
 		return err
 	}
@@ -789,19 +621,18 @@ func rawselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args 
 
 func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) error {
 
-	t, err := sqlx.BaseStructType(reflect.TypeOf(dest))
-	if err != nil {
-		return err
-	}
+	table := m.TableFor(dest)
 
-	table, err := m.tableFor(t, true)
-	if err != nil {
-		return err
+	if table == nil {
+		return fmt.Errorf("Could not find table for %v", dest)
+	}
+	if len(table.keys) < 1 {
+		return &NoKeysErr{table}
 	}
 
 	plan := table.bindGet()
 	row := exec.queryRowx(plan.query, keys...)
-	err = row.StructScan(dest)
+	err := row.StructScan(dest)
 
 	if err != nil {
 		return err
@@ -817,6 +648,24 @@ func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) erro
 	return nil
 }
 
+// Return a table for a pointer;  error if i is not a pointer or if the
+// table is not found
+func tableForPointer(m *DbMap, i interface{}, checkPk bool) (*TableMap, reflect.Value, error) {
+	v := reflect.ValueOf(i)
+	if v.Kind() != reflect.Ptr {
+		return nil, v, fmt.Errorf("Value %v not a pointer", v)
+	}
+	v = v.Elem()
+	t := m.TableForType(v.Type())
+	if t == nil {
+		return nil, v, fmt.Errorf("Could not find table for %v", t)
+	}
+	if checkPk && len(t.keys) < 1 {
+		return t, v, &NoKeysErr{t}
+	}
+	return t, v, nil
+}
+
 func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 	var err error
 	var table *TableMap
@@ -824,7 +673,7 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 	var count int64
 
 	for _, ptr := range list {
-		table, elem, err = m.tableForPointer(ptr, true)
+		table, elem, err = tableForPointer(m, ptr, true)
 		if err != nil {
 			return -1, err
 		}
@@ -872,7 +721,7 @@ func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 	var count int64
 
 	for _, ptr := range list {
-		table, elem, err = m.tableForPointer(ptr, true)
+		table, elem, err = tableForPointer(m, ptr, true)
 		if err != nil {
 			return -1, err
 		}
@@ -927,7 +776,7 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 	var elem reflect.Value
 
 	for _, ptr := range list {
-		table, elem, err = m.tableForPointer(ptr, false)
+		table, elem, err = tableForPointer(m, ptr, false)
 		if err != nil {
 			return err
 		}
@@ -940,9 +789,6 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 		}
 
 		bi := table.bindInsert(elem)
-		if err != nil {
-			return err
-		}
 
 		if bi.autoIncrIdx > -1 {
 			id, err := m.Dialect.InsertAutoIncr(exec, bi.query, bi.args...)

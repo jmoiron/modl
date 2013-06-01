@@ -7,11 +7,10 @@ Todo:
 
 In Progress:
 
-- remove list & new struct support form in favor of filling pointers and slices (removed in Get, not Select)
-- replace reflect struct filling with structscan from sqlx (done in Get, not Select)
-
 Done:
 
+- remove list & new struct support form in favor of filling pointers and slices
+- replace reflect struct filling with structscan from sqlx
 - use strings.ToLower on table & field names by default, aligning behavior w/ sqlx
 - replace hook calling process with one that uses interfaces
 

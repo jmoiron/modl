@@ -190,6 +190,17 @@ func TestOverrideVersionCol(t *testing.T) {
 	}
 }
 
+func TestDontPanicOnInsert(t *testing.T) {
+	var err error
+	dbmap := initDbMap()
+	defer dbmap.DropTables()
+
+	err = dbmap.Insert(&TableWithNull{Id: 10})
+	if err == nil {
+		t.Errorf("Should have received an error for inserting without a known table.")
+	}
+}
+
 func TestOptimisticLocking(t *testing.T) {
 	var err error
 	dbmap := initDbMap()
