@@ -145,7 +145,8 @@ func TestPersistentUser(t *testing.T) {
 		t.Errorf("%v!=%v", pu, pu2)
 	}
 
-	arr, err := dbmap.Select(pu, "select * from persistentuser")
+	arr := []*PersistentUser{}
+	err = dbmap.Select(&arr, "select * from persistentuser")
 	if err != nil {
 		t.Error(err)
 	}
@@ -154,33 +155,16 @@ func TestPersistentUser(t *testing.T) {
 	}
 
 	// prove we can get the results back in a slice
-	puArr := []*PersistentUser{}
-	_, err = dbmap.Select(&puArr, "select * from persistentuser")
+	puArr := []PersistentUser{}
+	err = dbmap.Select(&puArr, "select * from persistentuser")
 	if err != nil {
 		t.Error(err)
 	}
 	if len(puArr) != 1 {
 		t.Errorf("Expected one persistentuser, found none")
 	}
-	if !reflect.DeepEqual(pu, puArr[0]) {
+	if !reflect.DeepEqual(pu, &puArr[0]) {
 		t.Errorf("%v!=%v", pu, puArr[0])
-	}
-}
-
-// Ensure that the slices containing SQL results are non-nil when the result set is empty.
-func TestReturnsNonNilSlice(t *testing.T) {
-	dbmap := initDbMap()
-	defer dbmap.DropTables()
-	noResultsSQL := "select * from invoice_test where id=99999"
-	var r1 []*Invoice
-	_rawselect(dbmap, &r1, noResultsSQL)
-	if r1 == nil {
-		t.Errorf("r1==nil")
-	}
-
-	r2 := _rawselect(dbmap, Invoice{}, noResultsSQL)
-	if r2 == nil {
-		t.Errorf("r2==nil")
 	}
 }
 
@@ -356,13 +340,14 @@ func TestRawSelect(t *testing.T) {
 
 	expected := &InvoicePersonView{inv1.Id, p1.Id, inv1.Memo, p1.FName, 0}
 
-	query := "select i.Id InvoiceId, p.Id PersonId, i.Memo, p.FName " +
+	query := "select i.id invoiceid, p.id personid, i.memo, p.fname " +
 		"from invoice_test i, person_test p " +
-		"where i.PersonId = p.Id"
-	list := _rawselect(dbmap, InvoicePersonView{}, query)
+		"where i.personid = p.id"
+	list := []InvoicePersonView{}
+	MustSelect(dbmap, &list, query)
 	if len(list) != 1 {
 		t.Errorf("len(list) != 1: %d", len(list))
-	} else if !reflect.DeepEqual(expected, list[0]) {
+	} else if !reflect.DeepEqual(expected, &list[0]) {
 		t.Errorf("%v != %v", expected, list[0])
 	}
 }
@@ -393,7 +378,7 @@ func TestHooks(t *testing.T) {
 
 	var persons []*Person
 	bindVar := dbmap.Dialect.BindVar(0)
-	_rawselect(dbmap, &persons, "select * from person_test where id = "+bindVar, p1.Id)
+	MustSelect(dbmap, &persons, "select * from person_test where id = "+bindVar, p1.Id)
 	if persons[0].LName != "postget" {
 		t.Errorf("p1.PostGet() didn't run after select: %v", p1)
 	}
@@ -791,10 +776,9 @@ func _rawexec(dbmap *DbMap, query string, args ...interface{}) sql.Result {
 	return res
 }
 
-func _rawselect(dbmap *DbMap, i interface{}, query string, args ...interface{}) []interface{} {
-	list, err := dbmap.Select(i, query, args...)
+func MustSelect(dbmap *DbMap, dest interface{}, query string, args ...interface{}) {
+	err := dbmap.Select(dest, query, args...)
 	if err != nil {
 		panic(err)
 	}
-	return list
 }

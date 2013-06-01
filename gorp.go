@@ -490,7 +490,7 @@ type SqlExecutor interface {
 	Update(list ...interface{}) (int64, error)
 	Delete(list ...interface{}) (int64, error)
 	Exec(query string, args ...interface{}) (sql.Result, error)
-	Select(i interface{}, query string, args ...interface{}) ([]interface{}, error)
+	Select(dest interface{}, query string, args ...interface{}) error
 	query(query string, args ...interface{}) (*sql.Rows, error)
 	queryRow(query string, args ...interface{}) *sql.Row
 	queryRowx(query string, args ...interface{}) *sqlx.Row
@@ -576,14 +576,12 @@ func (m *DbMap) Get(dest interface{}, keys ...interface{}) error {
 //    and nil returned.
 //
 // i does NOT need to be registered with AddTable()
-func (m *DbMap) Select(i interface{}, query string, args ...interface{}) ([]interface{}, error) {
+func (m *DbMap) Select(i interface{}, query string, args ...interface{}) error {
 	return hookedselect(m, m, i, query, args...)
 }
 
-// FIXME: this comment is wrong, query preparation is commented out
-
 // Exec runs an arbitrary SQL statement.  args represent the bind parameters.
-// This is equivalent to running:  Prepare(), Exec() using database/sql
+// This is equivalent to running Exec() using database/sql
 func (m *DbMap) Exec(query string, args ...interface{}) (sql.Result, error) {
 	m.trace(query, args)
 	//stmt, err := m.Db.Prepare(query)
@@ -596,11 +594,11 @@ func (m *DbMap) Exec(query string, args ...interface{}) (sql.Result, error) {
 
 // Begin starts a gorp Transaction
 func (m *DbMap) Begin() (*Transaction, error) {
-	tx, err := m.Db.Begin()
+	tx, err := m.Dbx.Beginx()
 	if err != nil {
 		return nil, err
 	}
-	return &Transaction{m, &sqlx.Tx{*tx}}, nil
+	return &Transaction{m, tx}, nil
 }
 
 func (m *DbMap) tableFor(t reflect.Type, checkPK bool) (*TableMap, error) {
@@ -610,8 +608,7 @@ func (m *DbMap) tableFor(t reflect.Type, checkPK bool) (*TableMap, error) {
 	}
 
 	if checkPK && len(table.keys) < 1 {
-		e := fmt.Sprintf("gorp: No keys defined for table: %s",
-			table.TableName)
+		e := fmt.Sprintf("gorp: No keys defined for table: %s", table.TableName)
 		return nil, errors.New(e)
 	}
 
@@ -689,8 +686,8 @@ func (t *Transaction) Get(dest interface{}, keys ...interface{}) error {
 }
 
 // Same behavior as DbMap.Select(), but runs in a transaction
-func (t *Transaction) Select(i interface{}, query string, args ...interface{}) ([]interface{}, error) {
-	return hookedselect(t.dbmap, t, i, query, args...)
+func (t *Transaction) Select(dest interface{}, query string, args ...interface{}) error {
+	return hookedselect(t.dbmap, t, dest, query, args...)
 }
 
 // Same behavior as DbMap.Exec(), but runs in a transaction
@@ -730,7 +727,7 @@ func (t *Transaction) query(query string, args ...interface{}) (*sql.Rows, error
 
 ///////////////
 
-func hookedselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args ...interface{}) ([]interface{}, error) {
+func hookedselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args ...interface{}) error {
 
 	t, err := sqlx.BaseStructType(reflect.TypeOf(dest))
 	switch t.Kind() {
@@ -738,45 +735,41 @@ func hookedselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, ar
 		t, err = sqlx.BaseStructType(t.Elem())
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	table := tableOrNil(m, t)
 
-	list, err := rawselect(m, exec, dest, query, args...)
+	err = rawselect(m, exec, dest, query, args...)
 	if err != nil {
-		return nil, err
+		return err
 	}
+
+	// FIXME: In order to run hooks here we have to use reflect to loop over dest
+	// If we used sqlx.Rows.StructScan to pull one row at a time, we could do it
+	// all at once, but then we would lose some of the efficiencies of StructScan(sql.Rows)
 
 	// FIXME: should PostGet hooks be run on regular selects?  a PostGet
 	// hook has access to the object and the database, and I'd hate for
 	// a query to execute SQL on every row of a queryset.
 
-	// Determine where the results are: written to i, or returned in list
-	if table != nil {
-		if t := toSliceType(dest); t == nil {
-			if table.CanPostGet {
-				for _, v := range list {
-					err = v.(PostGetter).PostGet(exec)
-					if err != nil {
-						return nil, err
-					}
-				}
+	if table != nil && table.CanPostGet {
+		var x interface{}
+		v := reflect.ValueOf(dest)
+		if v.Kind() == reflect.Ptr {
+			v = reflect.Indirect(v)
+		}
+		l := v.Len()
+		for i := 0; i < l; i++ {
+			x = v.Index(i).Interface()
+			err = x.(PostGetter).PostGet(exec)
+			if err != nil {
+				return err
 			}
-		} else {
-			resultsValue := reflect.Indirect(reflect.ValueOf(dest))
-			if table.CanPostGet {
-				for i := 0; i < resultsValue.Len(); i++ {
-					v := resultsValue.Index(i).Interface()
-					err = v.(PostGetter).PostGet(exec)
-					if err != nil {
-						return nil, err
-					}
-				}
-			}
+
 		}
 	}
-	return list, nil
+	return nil
 }
 
 func toType(i interface{}) (reflect.Type, error) {
@@ -794,129 +787,19 @@ func toType(i interface{}) (reflect.Type, error) {
 
 }
 
-func rawselect(m *DbMap, exec SqlExecutor, i interface{}, query string, args ...interface{}) ([]interface{}, error) {
-	appendToSlice := false // Write results to i directly?
-
-	// get type for i, verifying it's a struct or a pointer-to-slice
-	t, err := toType(i)
-	if err != nil {
-		if t = toSliceType(i); t == nil {
-			return nil, err
-		}
-		appendToSlice = true
-	}
+func rawselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args ...interface{}) error {
+	// FIXME: we need to verify dest is a pointer-to-slice
 
 	// Run the query
-	rows, err := exec.query(query, args...)
+	sqlrows, err := exec.query(query, args...)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	defer rows.Close()
+	defer sqlrows.Close()
+	err = sqlx.StructScan(sqlrows, dest)
+	return err
 
-	// Fetch the column names as returned from db
-	cols, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	// check if type t is a mapped table - if so we'll
-	// check the table for column aliasing below
-	tableMapped := false
-	table := tableOrNil(m, t)
-	if table != nil {
-		tableMapped = true
-	}
-
-	colToFieldOffset := make([]int, len(cols))
-
-	numField := t.NumField()
-
-	// Loop over column names and find field in i to bind to
-	// based on column name. all returned columns must match
-	// a field in the i struct
-	for x := range cols {
-		colToFieldOffset[x] = -1
-		colName := strings.ToLower(cols[x])
-		for y := 0; y < numField; y++ {
-			field := t.Field(y)
-			fieldName := field.Tag.Get("db")
-
-			if fieldName == "-" {
-				continue
-			} else if fieldName == "" {
-				fieldName = strings.ToLower(field.Name)
-			}
-			if tableMapped {
-				colMap := colMapOrNil(table, fieldName)
-				if colMap != nil {
-					fieldName = colMap.ColumnName
-				}
-			}
-			fieldName = strings.ToLower(fieldName)
-
-			if fieldName == colName {
-				colToFieldOffset[x] = y
-				break
-			}
-		}
-		if colToFieldOffset[x] == -1 {
-			e := fmt.Sprintf("gorp: No field %s in type %s (query: %s)",
-				colName, t.Name(), query)
-			return nil, errors.New(e)
-		}
-	}
-
-	// Add results to one of these two slices.
-	var (
-		list       = make([]interface{}, 0)
-		sliceValue = reflect.Indirect(reflect.ValueOf(i))
-	)
-
-	for {
-		if !rows.Next() {
-			// if error occured return rawselect
-			if rows.Err() != nil {
-				return nil, rows.Err()
-			}
-			// time to exit from outer "for" loop
-			break
-		}
-		v := reflect.New(t)
-		dest := make([]interface{}, len(cols))
-
-		custScan := make([]CustomScanner, 0)
-
-		for x := range cols {
-			f := v.Elem().Field(colToFieldOffset[x])
-			target := f.Addr().Interface()
-			dest[x] = target
-		}
-
-		err = rows.Scan(dest...)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, c := range custScan {
-			err = c.Bind()
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if appendToSlice {
-			sliceValue.Set(reflect.Append(sliceValue, v))
-		} else {
-			list = append(list, v.Interface())
-		}
-	}
-
-	if appendToSlice && sliceValue.IsNil() {
-		sliceValue.Set(reflect.MakeSlice(sliceValue.Type(), 0, 0))
-	}
-
-	return list, nil
 }
 
 func fieldByName(val reflect.Value, fieldName string) *reflect.Value {
