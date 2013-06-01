@@ -256,8 +256,10 @@ func TestNullValues(t *testing.T) {
 	defer dbmap.DropTables()
 
 	// insert a row directly
-	_rawexec(dbmap, "insert into tablewithnull values (10, null, "+
-		"null, null, null, null)")
+	_, err := dbmap.Exec(`insert into tablewithnull values (10, null, null, null, null, null)`)
+	if err != nil {
+		panic(err)
+	}
 
 	// try to load it
 	expected := &TableWithNull{Id: 10}
@@ -766,14 +768,6 @@ func MustGet(dbmap *DbMap, i interface{}, keys ...interface{}) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func _rawexec(dbmap *DbMap, query string, args ...interface{}) sql.Result {
-	res, err := dbmap.Exec(query, args...)
-	if err != nil {
-		panic(err)
-	}
-	return res
 }
 
 func MustSelect(dbmap *DbMap, dest interface{}, query string, args ...interface{}) {
