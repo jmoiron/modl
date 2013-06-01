@@ -147,7 +147,15 @@ func (t *TableMap) ResetSql() {
 // will be used after INSERT to bind the generated id to the Go struct.
 //
 // Automatically calls ResetSql() to ensure SQL statements are regenerated.
+//
+// Panics if isAutoIncr is true, and fieldNames length != 1
+//
 func (t *TableMap) SetKeys(isAutoIncr bool, fieldNames ...string) *TableMap {
+	if isAutoIncr && len(fieldNames) != 1 {
+		panic(fmt.Sprintf(
+			"gorp: SetKeys: fieldNames length must be 1 if key is auto-increment. (Saw %v fieldNames)",
+			len(fieldNames)))
+	}
 	t.keys = make([]*ColumnMap, 0)
 	for _, name := range fieldNames {
 		colmap := t.ColMap(name)
@@ -692,10 +700,25 @@ func (m *DbMap) createTables(ifNotExists bool) error {
 // DropTables iterates through TableMaps registered to this DbMap and
 // executes "drop table" statements against the database for each.
 func (m *DbMap) DropTables() error {
+	return m.dropTables(false)
+}
+
+// DropTablesIfExists is the same as DropTables, but uses the "if exists" clause to
+// avoid errors for tables that do not exist.
+func (m *DbMap) DropTablesIfExists() error {
+	return m.dropTables(true)
+}
+
+func (m *DbMap) dropTables(addIfExists bool) error {
+	ifExists := ""
+	if addIfExists {
+		ifExists = " if exists"
+	}
+
 	var err error
 	for i := range m.tables {
 		table := m.tables[i]
-		_, e := m.Exec(fmt.Sprintf("drop table %s;", m.Dialect.QuoteField(table.TableName)))
+		_, e := m.Exec(fmt.Sprintf("drop table%s %s;", ifExists, m.Dialect.QuoteField(table.TableName)))
 		if e != nil {
 			err = e
 		}
@@ -920,6 +943,7 @@ func (t *Transaction) Exec(query string, args ...interface{}) (sql.Result, error
 	if err != nil {
 		return nil, err
 	}
+	defer stmt.Close()
 	return stmt.Exec(args...)
 }
 
@@ -1041,7 +1065,7 @@ func hookedselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
 	}
 
 	// Determine where the results are: written to i, or returned in list
-	if t := toSliceType(i); t == nil {
+	if t, _ := toSliceType(i); t == nil {
 		for _, v := range list {
 			err = runHook("PostGet", reflect.ValueOf(v), hookArg(exec))
 			if err != nil {
@@ -1067,7 +1091,11 @@ func rawselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
 	// get type for i, verifying it's a struct or a pointer-to-slice
 	t, err := toType(i)
 	if err != nil {
-		if t = toSliceType(i); t == nil {
+		var err2 error
+		if t, err2 = toSliceType(i); t == nil {
+			if err2 != nil {
+				return nil, err2
+			}
 			return nil, err
 		}
 		appendToSlice = true
@@ -1220,21 +1248,26 @@ func fieldByName(val reflect.Value, fieldName string) *reflect.Value {
 
 // toSliceType returns the element type of the given object, if the object is a
 // "*[]*Element". If not, returns nil.
-func toSliceType(i interface{}) reflect.Type {
+// err is returned if the user was trying to pass a pointer-to-slice but failed.
+func toSliceType(i interface{}) (reflect.Type, error) {
 	t := reflect.TypeOf(i)
 	if t.Kind() != reflect.Ptr {
-		return nil
+		// If it's a slice, return a more helpful error message
+		if t.Kind() == reflect.Slice {
+			return nil, fmt.Errorf("gorp: Cannot SELECT into a non-pointer slice: %v", t)
+		}
+		return nil, nil
 	}
 	if t = t.Elem(); t.Kind() != reflect.Slice {
-		return nil
+		return nil, nil
 	}
 	if t = t.Elem(); t.Kind() != reflect.Ptr {
-		return nil
+		return nil, nil
 	}
 	if t = t.Elem(); t.Kind() != reflect.Struct {
-		return nil
+		return nil, nil
 	}
-	return t
+	return t, nil
 }
 
 func toType(i interface{}) (reflect.Type, error) {
@@ -1431,6 +1464,8 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 			k := f.Kind()
 			if (k == reflect.Int) || (k == reflect.Int16) || (k == reflect.Int32) || (k == reflect.Int64) {
 				f.SetInt(id)
+			} else if (k == reflect.Uint16) || (k == reflect.Uint32) || (k == reflect.Uint64) {
+				f.SetUint(uint64(id))
 			} else {
 				return errors.New(fmt.Sprintf("gorp: Cannot set autoincrement value on non-Int field. SQL=%s  autoIncrIdx=%d", bi.query, bi.autoIncrIdx))
 			}

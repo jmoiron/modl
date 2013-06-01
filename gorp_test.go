@@ -69,6 +69,21 @@ type TypeConversionExample struct {
 	Name       CustomStringType
 }
 
+type PersonUInt32 struct {
+	Id   uint32
+	Name string
+}
+
+type PersonUInt64 struct {
+	Id   uint64
+	Name string
+}
+
+type PersonUInt16 struct {
+	Id   uint16
+	Name string
+}
+
 type testTypeConverter struct{}
 
 func (me testTypeConverter) ToDb(val interface{}) (interface{}, error) {
@@ -173,6 +188,36 @@ func TestCreateTablesIfNotExists(t *testing.T) {
 	}
 }
 
+func TestUIntPrimaryKey(t *testing.T) {
+	dbmap := newDbMap()
+	dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
+	dbmap.AddTable(PersonUInt64{}).SetKeys(true, "Id")
+	dbmap.AddTable(PersonUInt32{}).SetKeys(true, "Id")
+	dbmap.AddTable(PersonUInt16{}).SetKeys(true, "Id")
+	err := dbmap.CreateTablesIfNotExists()
+	if err != nil {
+		panic(err)
+	}
+	defer dbmap.DropTables()
+
+	p1 := &PersonUInt64{0, "name1"}
+	p2 := &PersonUInt32{0, "name2"}
+	p3 := &PersonUInt16{0, "name3"}
+	err = dbmap.Insert(p1, p2, p3)
+	if err != nil {
+		t.Error(err)
+	}
+	if p1.Id != 1 {
+		t.Errorf("%d != 1", p1.Id)
+	}
+	if p2.Id != 1 {
+		t.Errorf("%d != 1", p2.Id)
+	}
+	if p3.Id != 1 {
+		t.Errorf("%d != 1", p3.Id)
+	}
+}
+
 func TestPersistentUser(t *testing.T) {
 	dbmap := newDbMap()
 	dbmap.Exec("drop table if exists PersistentUser")
@@ -183,7 +228,7 @@ func TestPersistentUser(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer dbmap.DropTables()
+	defer dbmap.DropTablesIfExists()
 	pu := &PersistentUser{43, "33r", false}
 	err = dbmap.Insert(pu)
 	if err != nil {
@@ -705,6 +750,38 @@ func TestWithStringPk(t *testing.T) {
 	err = dbmap.Insert(row)
 	if err == nil {
 		t.Errorf("Expected error when inserting into table w/non Int PK and autoincr set true")
+	}
+}
+
+func TestInvoicePersonView(t *testing.T) {
+	dbmap := initDbMap()
+	defer dbmap.DropTables()
+
+	// Create some rows
+	p1 := &Person{0, 0, 0, "bob", "smith", 0}
+	dbmap.Insert(p1)
+
+	// notice how we can wire up p1.Id to the invoice easily
+	inv1 := &Invoice{0, 0, 0, "xmas order", p1.Id, false}
+	dbmap.Insert(inv1)
+
+	// Run your query
+	query := "select i.Id InvoiceId, p.Id PersonId, i.Memo, p.FName " +
+		"from invoice_test i, person_test p " +
+		"where i.PersonId = p.Id"
+
+	// pass a slice of pointers to Select()
+	// this avoids the need to type assert after the query is run
+	var list []*InvoicePersonView
+	_, err := dbmap.Select(&list, query)
+	if err != nil {
+		panic(err)
+	}
+
+	// this should test true
+	expected := &InvoicePersonView{inv1.Id, p1.Id, inv1.Memo, p1.FName, 0}
+	if !reflect.DeepEqual(list[0], expected) {
+		t.Errorf("%v != %v", list[0], expected)
 	}
 }
 
