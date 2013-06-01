@@ -730,10 +730,20 @@ func (t *Transaction) query(query string, args ...interface{}) (*sql.Rows, error
 
 ///////////////
 
-func hookedselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
-	args ...interface{}) ([]interface{}, error) {
+func hookedselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args ...interface{}) ([]interface{}, error) {
 
-	list, err := rawselect(m, exec, i, query, args...)
+	t, err := sqlx.BaseStructType(reflect.TypeOf(dest))
+	switch t.Kind() {
+	case reflect.Slice:
+		t, err = sqlx.BaseStructType(t.Elem())
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	table := tableOrNil(m, t)
+
+	list, err := rawselect(m, exec, dest, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -743,19 +753,26 @@ func hookedselect(m *DbMap, exec SqlExecutor, i interface{}, query string,
 	// a query to execute SQL on every row of a queryset.
 
 	// Determine where the results are: written to i, or returned in list
-	if t := toSliceType(i); t == nil {
-		for _, v := range list {
-			err = runHook("PostGet", reflect.ValueOf(v), hookArg(exec))
-			if err != nil {
-				return nil, err
+	if table != nil {
+		if t := toSliceType(dest); t == nil {
+			if table.CanPostGet {
+				for _, v := range list {
+					err = v.(PostGetter).PostGet(exec)
+					if err != nil {
+						return nil, err
+					}
+				}
 			}
-		}
-	} else {
-		resultsValue := reflect.Indirect(reflect.ValueOf(i))
-		for i := 0; i < resultsValue.Len(); i++ {
-			err = runHook("PostGet", resultsValue.Index(i), hookArg(exec))
-			if err != nil {
-				return nil, err
+		} else {
+			resultsValue := reflect.Indirect(reflect.ValueOf(dest))
+			if table.CanPostGet {
+				for i := 0; i < resultsValue.Len(); i++ {
+					v := resultsValue.Index(i).Interface()
+					err = v.(PostGetter).PostGet(exec)
+					if err != nil {
+						return nil, err
+					}
+				}
 			}
 		}
 	}
@@ -1126,22 +1143,6 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 			if err != nil {
 				return err
 			}
-		}
-	}
-	return nil
-}
-
-func hookArg(exec SqlExecutor) []reflect.Value {
-	execval := reflect.ValueOf(exec)
-	return []reflect.Value{execval}
-}
-
-func runHook(name string, eptr reflect.Value, arg []reflect.Value) error {
-	hook := eptr.MethodByName(name)
-	if hook != zeroVal {
-		ret := hook.Call(arg)
-		if len(ret) > 0 && !ret[0].IsNil() {
-			return ret[0].Interface().(error)
 		}
 	}
 	return nil
