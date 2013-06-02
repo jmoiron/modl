@@ -1,7 +1,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 //
-package gorp
+package modl
 
 import (
 	"bytes"
@@ -13,14 +13,14 @@ import (
 	"strings"
 )
 
-// DbMap is the root gorp mapping object. Create one of these for each
+// DbMap is the root modl mapping object. Create one of these for each
 // database schema you wish to map.  Each DbMap contains a list of
 // mapped tables.
 //
 // Example:
 //
-//     dialect := gorp.MySQLDialect{"InnoDB", "UTF8"}
-//     dbmap := &gorp.DbMap{Db: db, Dialect: dialect}
+//     dialect := modl.MySQLDialect{"InnoDB", "UTF8"}
+//     dbmap := &modl.DbMap{Db: db, Dialect: dialect}
 //
 type DbMap struct {
 	// Db handle to use with this map
@@ -45,7 +45,7 @@ func NewDbMap(db *sql.DB, dialect Dialect) *DbMap {
 // a non-empty string, it will be written to the front of all logged
 // strings, which can aid in filtering log lines.
 //
-// Use TraceOn if you want to spy on the SQL statements that gorp
+// Use TraceOn if you want to spy on the SQL statements that modl
 // generates.
 func (m *DbMap) TraceOn(prefix string, logger *log.Logger) {
 	m.logger = logger
@@ -62,7 +62,7 @@ func (m *DbMap) TraceOff() {
 	m.logPrefix = ""
 }
 
-// AddTable registers the given interface type with gorp. The table name
+// AddTable registers the given interface type with modl. The table name
 // will be given the name of the TypeOf(i), lowercased.
 //
 // This operation is idempotent. If i's type is already mapped, the
@@ -300,7 +300,7 @@ func (m *DbMap) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return m.Db.Exec(query, args...)
 }
 
-// Begin starts a gorp Transaction
+// Begin starts a modl Transaction
 func (m *DbMap) Begin() (*Transaction, error) {
 	tx, err := m.Dbx.Beginx()
 	if err != nil {

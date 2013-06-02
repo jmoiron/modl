@@ -1,4 +1,4 @@
-package gorp
+package modl
 
 import (
 	"database/sql"
@@ -122,7 +122,7 @@ func TestCreateTablesIfNotExists(t *testing.T) {
 func TestPersistentUser(t *testing.T) {
 	dbmap := newDbMap()
 	dbmap.Exec("drop table if exists persistentuser")
-	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
+	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
 	dbmap.AddTable(PersistentUser{}).SetKeys(false, "mykey")
 	err := dbmap.CreateTablesIfNotExists()
 	if err != nil {
@@ -304,7 +304,7 @@ func TestNullValues(t *testing.T) {
 
 func TestColumnProps(t *testing.T) {
 	dbmap := newDbMap()
-	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
+	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
 	t1 := dbmap.AddTable(Invoice{}).SetKeys(true, "Id")
 	//t1.ColMap("Created").Rename("date_created")
 	t1.ColMap("Updated").SetTransient(true)
@@ -558,7 +558,7 @@ func TestVersionMultipleRows(t *testing.T) {
 
 func TestWithStringPk(t *testing.T) {
 	dbmap := newDbMap()
-	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
+	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
 	dbmap.AddTableWithName(WithStringPk{}, "string_pk_test").SetKeys(true, "Id")
 	_, err := dbmap.Exec("create table string_pk_test (Id varchar(255), Name varchar(255));")
 	if err != nil {
@@ -651,7 +651,7 @@ func BenchmarkGorpCrud(b *testing.B) {
 	b.StopTimer()
 	dbmap := initDbMapBench()
 	defer dbmap.DropTables()
-	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
+	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
 	b.StartTimer()
 
 	inv := &Invoice{0, 100, 200, "my memo", 0, true}
@@ -697,7 +697,7 @@ func initDbMapBench() *DbMap {
 
 func initDbMap() *DbMap {
 	dbmap := newDbMap()
-	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
+	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
 	dbmap.AddTableWithName(Invoice{}, "invoice_test").SetKeys(true, "id")
 	dbmap.AddTableWithName(Person{}, "person_test").SetKeys(true, "id")
 	dbmap.AddTableWithName(WithIgnoredColumn{}, "ignored_column_test").SetKeys(true, "id")
@@ -711,7 +711,7 @@ func initDbMap() *DbMap {
 
 func initDbMapNulls() *DbMap {
 	dbmap := newDbMap()
-	//dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
+	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
 	dbmap.AddTable(TableWithNull{}).SetKeys(false, "id")
 	err := dbmap.CreateTables()
 	if err != nil {

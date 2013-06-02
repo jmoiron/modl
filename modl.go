@@ -1,15 +1,13 @@
+// Changes Copyright 2013 Jason Moiron.  Original Gorp code
 // Copyright 2012 James Cooper. All rights reserved.
+//
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
-
-// Package gorp provides a simple way to marshal Go structs to and from
-// SQL databases.  It uses the database/sql package, and should work with any
-// compliant database/sql driver.
 //
 // Source code and project home:
-// https://github.com/coopernurse/gorp
+// https://github.com/jmoiron/modl
 //
-package gorp
+package modl
 
 import (
 	"bytes"
@@ -29,7 +27,7 @@ func (n NoKeysErr) Error() string {
 	return fmt.Sprintf("Could not find keys for table %v", n.Table)
 }
 
-var versFieldConst = "[gorp_ver_field]"
+var versFieldConst = "[modl_ver_field]"
 
 // OptimisticLockError is returned by Update() or Delete() if the
 // struct being modified has a Version field and the value is not equal to
@@ -55,10 +53,10 @@ type OptimisticLockError struct {
 // Error returns a description of the cause of the lock error
 func (e OptimisticLockError) Error() string {
 	if e.RowExists {
-		return fmt.Sprintf("gorp: OptimisticLockError table=%s keys=%v out of date version=%d", e.TableName, e.Keys, e.LocalVersion)
+		return fmt.Sprintf("modl: OptimisticLockError table=%s keys=%v out of date version=%d", e.TableName, e.Keys, e.LocalVersion)
 	}
 
-	return fmt.Sprintf("gorp: OptimisticLockError no row found for table=%s keys=%v", e.TableName, e.Keys)
+	return fmt.Sprintf("modl: OptimisticLockError no row found for table=%s keys=%v", e.TableName, e.Keys)
 }
 
 // CustomScanner binds a database column value to a Go type
@@ -76,7 +74,7 @@ type CustomScanner struct {
 	Binder func(holder interface{}, target interface{}) error
 }
 
-// Bind is called automatically by gorp after Scan()
+// Bind is called automatically by modl after Scan()
 func (me CustomScanner) Bind() error {
 	return me.Binder(me.Holder, me.Target)
 }
@@ -472,7 +470,7 @@ func (c *ColumnMap) SetMaxSize(size int) *ColumnMap {
 	return c
 }
 
-// SqlExecutor exposes gorp operations that can be run from Pre/Post
+// SqlExecutor exposes modl operations that can be run from Pre/Post
 // hooks.  This hides whether the current operation that triggered the
 // hook is in a transaction.
 //
@@ -792,7 +790,7 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 			if (k == reflect.Int) || (k == reflect.Int16) || (k == reflect.Int32) || (k == reflect.Int64) {
 				f.SetInt(id)
 			} else {
-				return errors.New(fmt.Sprintf("gorp: Cannot set autoincrement value on non-Int field. SQL=%s  autoIncrIdx=%d", bi.query, bi.autoIncrIdx))
+				return errors.New(fmt.Sprintf("modl: Cannot set autoincrement value on non-Int field. SQL=%s  autoIncrIdx=%d", bi.query, bi.autoIncrIdx))
 			}
 		} else {
 			_, err := exec.Exec(bi.query, bi.args...)
