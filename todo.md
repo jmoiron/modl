@@ -1,5 +1,6 @@
 Todo:
 
+- benchmarks that can compare mainline gorp to this fork
 - cache/store as much reflect stuff as possible
 - add query builder
 - update docs with new examples

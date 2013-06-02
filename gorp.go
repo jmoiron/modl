@@ -437,22 +437,10 @@ type ColumnMap struct {
 
 	fieldName  string
 	gotype     reflect.Type
+	sqltype    string
 	isPK       bool
 	isAutoIncr bool
 }
-
-// This mapping should be known ahead of time, and this is the one case where
-// I think I want things to actually be done in the struct tags instead of
-// being changed at runtime where other systems then do not have access to them
-
-// Rename allows you to specify the column name in the table
-//
-// Example:  table.ColMap("Updated").Rename("date_updated")
-//
-//func (c *ColumnMap) Rename(colname string) *ColumnMap {
-//	c.ColumnName = colname
-//	return c
-//}
 
 // SetTransient allows you to mark the column as transient. If true
 // this column will be skipped when SQL statements are generated
@@ -468,21 +456,20 @@ func (c *ColumnMap) SetUnique(b bool) *ColumnMap {
 	return c
 }
 
+// Set the column's sql type.  This is a string, such as 'varchar(32)' or
+// 'text', which will be used by CreateTable and nothing else.  It is the
+// caller's responsibility to ensure this will map cleanly to the struct
+func (c *ColumnMap) SetSqlType(t string) *ColumnMap {
+	c.sqltype = t
+	return c
+}
+
 // SetMaxSize specifies the max length of values of this column. This is
 // passed to the dialect.ToSqlType() function, which can use the value
 // to alter the generated type for "create table" statements
 func (c *ColumnMap) SetMaxSize(size int) *ColumnMap {
 	c.MaxSize = size
 	return c
-}
-
-// Transaction represents a database transaction.
-// Insert/Update/Delete/Get/Exec operations will be run in the context
-// of that transaction.  Transactions should be terminated with
-// a call to Commit() or Rollback()
-type Transaction struct {
-	dbmap *DbMap
-	tx    *sqlx.Tx
 }
 
 // SqlExecutor exposes gorp operations that can be run from Pre/Post
@@ -504,6 +491,15 @@ type SqlExecutor interface {
 }
 
 ///////////////
+
+// Transaction represents a database transaction.
+// Insert/Update/Delete/Get/Exec operations will be run in the context
+// of that transaction.  Transactions should be terminated with
+// a call to Commit() or Rollback()
+type Transaction struct {
+	dbmap *DbMap
+	tx    *sqlx.Tx
+}
 
 // Same behavior as DbMap.Insert(), but runs in a transaction
 func (t *Transaction) Insert(list ...interface{}) error {
