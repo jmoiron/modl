@@ -1,4 +1,36 @@
-# Go Relational Persistence #
+# Go Relational Persistence
+
+[![Build Status](https://drone.io/github.com/jmoiron/gorp/status.png)](https://drone.io/github.com/jmoiron/gorp/latest)
+
+**Note**: This fork is under heavy development.  I plan to discuss the reasons
+for this fork and some of the guiding philosophies behind what's been added and
+what's been removed.  For now, read the todo.md in this directory.  
+
+To use the `test-all` script, set the following environment variables:
+
+```sh
+# mysql DSN, like "gorptest/gorptest/gorptest"
+GORP_MYSQL_DSN="dbname/username/password"
+
+# postgres DSN, like:
+GORP_POSTGRES_DSN="username=dbname password=pw dbname=dbname ssl-node=disable"
+
+# sqlite DSN, which is a path
+GORP_SQLITE_DSN="/dev/shm/gorptest.db"
+
+# optional, will fail the test if any DBs are skipped (for CI, mostly)
+GORP_FAIL_ON_SKIP=true
+```
+
+In addition to this, you can create an `environ` file in this directory which
+will be sourced and ignored by git.  You can continue to use the `GORP_TEST_DSN`
+and `GORP_TEST_DIALECT` variables if you want to manually run `go test` or if
+you want to run the benchmarks, as described below.
+
+The original README.md follows:
+
+
+---------------------------------------------------------------------
 
 I hesitate to call gorp an ORM.  Go doesn't really have objects, at least 
 not in the classic Smalltalk/Java sense.  There goes the "O".  gorp doesn't 
