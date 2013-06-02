@@ -119,36 +119,6 @@ func TestCreateTablesIfNotExists(t *testing.T) {
 	}
 }
 
-func TestUIntPrimaryKey(t *testing.T) {
-	dbmap := newDbMap()
-	dbmap.TraceOn("", log.New(os.Stdout, "gorptest: ", log.Lmicroseconds))
-	dbmap.AddTable(PersonUInt64{}).SetKeys(true, "Id")
-	dbmap.AddTable(PersonUInt32{}).SetKeys(true, "Id")
-	dbmap.AddTable(PersonUInt16{}).SetKeys(true, "Id")
-	err := dbmap.CreateTablesIfNotExists()
-	if err != nil {
-		panic(err)
-	}
-	defer dbmap.DropTables()
-
-	p1 := &PersonUInt64{0, "name1"}
-	p2 := &PersonUInt32{0, "name2"}
-	p3 := &PersonUInt16{0, "name3"}
-	err = dbmap.Insert(p1, p2, p3)
-	if err != nil {
-		t.Error(err)
-	}
-	if p1.Id != 1 {
-		t.Errorf("%d != 1", p1.Id)
-	}
-	if p2.Id != 1 {
-		t.Errorf("%d != 1", p2.Id)
-	}
-	if p3.Id != 1 {
-		t.Errorf("%d != 1", p3.Id)
-	}
-}
-
 func TestPersistentUser(t *testing.T) {
 	dbmap := newDbMap()
 	dbmap.Exec("drop table if exists persistentuser")
@@ -158,7 +128,7 @@ func TestPersistentUser(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer dbmap.DropTablesIfExists()
+	defer dbmap.DropTables()
 	pu := &PersistentUser{43, "33r", false}
 	err = dbmap.Insert(pu)
 	if err != nil {
@@ -603,38 +573,6 @@ func TestWithStringPk(t *testing.T) {
 	}
 }
 
-func TestInvoicePersonView(t *testing.T) {
-	dbmap := initDbMap()
-	defer dbmap.DropTables()
-
-	// Create some rows
-	p1 := &Person{0, 0, 0, "bob", "smith", 0}
-	dbmap.Insert(p1)
-
-	// notice how we can wire up p1.Id to the invoice easily
-	inv1 := &Invoice{0, 0, 0, "xmas order", p1.Id, false}
-	dbmap.Insert(inv1)
-
-	// Run your query
-	query := "select i.Id InvoiceId, p.Id PersonId, i.Memo, p.FName " +
-		"from invoice_test i, person_test p " +
-		"where i.PersonId = p.Id"
-
-	// pass a slice of pointers to Select()
-	// this avoids the need to type assert after the query is run
-	var list []*InvoicePersonView
-	_, err := dbmap.Select(&list, query)
-	if err != nil {
-		panic(err)
-	}
-
-	// this should test true
-	expected := &InvoicePersonView{inv1.Id, p1.Id, inv1.Memo, p1.FName, 0}
-	if !reflect.DeepEqual(list[0], expected) {
-		t.Errorf("%v != %v", list[0], expected)
-	}
-}
-
 func BenchmarkNativeCrud(b *testing.B) {
 	var err error
 
@@ -788,9 +726,9 @@ func newDbMap() *DbMap {
 }
 
 func connect(driver string) *sql.DB {
-	dsn := os.Getenv("GORP_TEST_DSN")
+	dsn := os.Getenv("MODL_TEST_DSN")
 	if dsn == "" {
-		panic("GORP_TEST_DSN env variable is not set. Please see README.md")
+		panic("MODL_TEST_DSN env variable is not set. Please see README.md")
 	}
 
 	db, err := sql.Open(driver, dsn)
@@ -801,7 +739,7 @@ func connect(driver string) *sql.DB {
 }
 
 func dialectAndDriver() (Dialect, string) {
-	switch os.Getenv("GORP_TEST_DIALECT") {
+	switch os.Getenv("MODL_TEST_DIALECT") {
 	case "mysql":
 		return MySQLDialect{"InnoDB", "UTF8"}, "mymysql"
 	case "postgres":
@@ -809,7 +747,7 @@ func dialectAndDriver() (Dialect, string) {
 	case "sqlite":
 		return SqliteDialect{}, "sqlite3"
 	}
-	panic("GORP_TEST_DIALECT env variable is not set or is invalid. Please see README.md")
+	panic("MODL_TEST_DIALECT env variable is not set or is invalid. Please see README.md")
 }
 
 func _insert(dbmap *DbMap, list ...interface{}) {

@@ -120,15 +120,7 @@ func (t *TableMap) ResetSql() {
 // will be used after INSERT to bind the generated id to the Go struct.
 //
 // Automatically calls ResetSql() to ensure SQL statements are regenerated.
-//
-// Panics if isAutoIncr is true, and fieldNames length != 1
-//
 func (t *TableMap) SetKeys(isAutoIncr bool, fieldNames ...string) *TableMap {
-	if isAutoIncr && len(fieldNames) != 1 {
-		panic(fmt.Sprintf(
-			"gorp: SetKeys: fieldNames length must be 1 if key is auto-increment. (Saw %v fieldNames)",
-			len(fieldNames)))
-	}
 	t.keys = make([]*ColumnMap, 0)
 	for _, name := range fieldNames {
 		colmap := t.ColMap(strings.ToLower(name))
@@ -537,12 +529,7 @@ func (t *Transaction) Select(dest interface{}, query string, args ...interface{}
 // Same behavior as DbMap.Exec(), but runs in a transaction
 func (t *Transaction) Exec(query string, args ...interface{}) (sql.Result, error) {
 	t.dbmap.trace(query, args)
-	stmt, err := t.tx.Prepare(query)
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-	return stmt.Exec(args...)
+	return t.tx.Exec(query, args...)
 }
 
 // Commits the underlying database transaction
@@ -804,8 +791,6 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 			k := f.Kind()
 			if (k == reflect.Int) || (k == reflect.Int16) || (k == reflect.Int32) || (k == reflect.Int64) {
 				f.SetInt(id)
-			} else if (k == reflect.Uint16) || (k == reflect.Uint32) || (k == reflect.Uint64) {
-				f.SetUint(uint64(id))
 			} else {
 				return errors.New(fmt.Sprintf("gorp: Cannot set autoincrement value on non-Int field. SQL=%s  autoIncrIdx=%d", bi.query, bi.autoIncrIdx))
 			}

@@ -2,11 +2,11 @@
 #
 # To use this script, set the following environment variables:
 #
-#   GORP_MYSQL_DSN - mysql connect DSN, like "gorptest/gorptest/gorptest"
-#   GORP_POSTGRES_DSN - postgres connect DSN, eg:
-#        "username=gorptest password=gorptest dbname=gorptest ssl-mode=disable"
-#   GORP_SQLITE_DSN - sqlite connect DSN, which is a path to a sqlite file.
-#   GORP_FAIL_ON_SKIP - optional, will fail if any DBs are skipped (for CI, mostly)
+#   MODL_MYSQL_DSN - mysql connect DSN, like "modltest/modltest/modltest"
+#   MODL_POSTGRES_DSN - postgres connect DSN, eg:
+#        "username=modltest password=modltest dbname=modltest ssl-mode=disable"
+#   MODL_SQLITE_DSN - sqlite connect DSN, which is a path to a sqlite file.
+#   MODL_FAIL_ON_SKIP - optional, will fail if any DBs are skipped (for CI, mostly)
 #
 # In addition to this, you can create an `environ` file in this directory which
 # will be sourced and ignored by git.
@@ -19,35 +19,35 @@ fi
 
 set -e
 
-if [ -n "$GORP_MYSQL_DSN" ]; then
-    export GORP_TEST_DSN="$GORP_MYSQL_DSN"
-    export GORP_TEST_DIALECT="mysql"
+if [ -n "$MODL_MYSQL_DSN" ]; then
+    export MODL_TEST_DSN="$MODL_MYSQL_DSN"
+    export MODL_TEST_DIALECT="mysql"
     go test
 else
-    echo "Skipping MySQL, \$GORP_MYSQL_DSN=$GORP_MYSQL_DSN"
-    if [ -n "$GORP_FAIL_ON_SKIP" ]; then
+    echo "Skipping MySQL, \$MODL_MYSQL_DSN=$MODL_MYSQL_DSN"
+    if [ -n "$MODL_FAIL_ON_SKIP" ]; then
         exit -1
     fi
 fi
 
-if [ -n "$GORP_POSTGRES_DSN" ]; then
-    export GORP_TEST_DSN="$GORP_POSTGRES_DSN"
-    export GORP_TEST_DIALECT="postgres"
+if [ -n "$MODL_POSTGRES_DSN" ]; then
+    export MODL_TEST_DSN="$MODL_POSTGRES_DSN"
+    export MODL_TEST_DIALECT="postgres"
     go test
 else
-    echo "Skipping PostgreSQL, \$GORP_POSTGRES_DSN=$GORP_POSTGRES_DSN"
-    if [ -n "$GORP_FAIL_ON_SKIP" ]; then
+    echo "Skipping PostgreSQL, \$MODL_POSTGRES_DSN=$MODL_POSTGRES_DSN"
+    if [ -n "$MODL_FAIL_ON_SKIP" ]; then
         exit -1
     fi
 fi
 
-if [ -n "$GORP_SQLITE_DSN" ]; then
-    export GORP_TEST_DSN="$GORP_SQLITE_DSN"
-    export GORP_TEST_DIALECT="sqlite"
+if [ -n "$MODL_SQLITE_DSN" ]; then
+    export MODL_TEST_DSN="$MODL_SQLITE_DSN"
+    export MODL_TEST_DIALECT="sqlite"
     go test
 else
-    echo "Skipping SQLite, \$GORP_SQLITE_DSN=$GORP_SQLITE_DSN"
-    if [ -n "$GORP_FAIL_ON_SKIP" ]; then
+    echo "Skipping SQLite, \$MODL_SQLITE_DSN=$MODL_SQLITE_DSN"
+    if [ -n "$MODL_FAIL_ON_SKIP" ]; then
         exit -1
     fi
 fi
