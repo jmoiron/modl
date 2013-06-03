@@ -16,7 +16,7 @@ type Dialect interface {
 	// table of the given Go Type.  maxsize can be used to switch based on
 	// size.  For example, in MySQL []byte could map to BLOB, MEDIUMBLOB,
 	// or LONGBLOB depending on the maxsize
-	ToSqlType(val reflect.Type, maxsize int, isAutoIncr bool) string
+	ToSqlType(col *ColumnMap) string
 
 	// string to append to primary key column definitions
 	AutoIncrStr() string
@@ -59,8 +59,8 @@ type SqliteDialect struct {
 	suffix string
 }
 
-func (d SqliteDialect) ToSqlType(val reflect.Type, maxsize int, isAutoIncr bool) string {
-	switch val.Kind() {
+func (d SqliteDialect) ToSqlType(col *ColumnMap) string {
+	switch col.gotype.Kind() {
 	case reflect.Bool:
 		return "integer"
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -68,12 +68,12 @@ func (d SqliteDialect) ToSqlType(val reflect.Type, maxsize int, isAutoIncr bool)
 	case reflect.Float64, reflect.Float32:
 		return "real"
 	case reflect.Slice:
-		if val.Elem().Kind() == reflect.Uint8 {
+		if col.gotype.Elem().Kind() == reflect.Uint8 {
 			return "blob"
 		}
 	}
 
-	switch val.Name() {
+	switch col.gotype.Name() {
 	case "NullableInt64":
 		return "integer"
 	case "NullableFloat64":
@@ -84,7 +84,8 @@ func (d SqliteDialect) ToSqlType(val reflect.Type, maxsize int, isAutoIncr bool)
 		return "blob"
 	}
 
-	if maxsize < 1 {
+	maxsize := col.MaxSize
+	if col.MaxSize < 1 {
 		maxsize = 255
 	}
 	return fmt.Sprintf("varchar(%d)", maxsize)
@@ -129,29 +130,30 @@ type PostgresDialect struct {
 	suffix string
 }
 
-func (d PostgresDialect) ToSqlType(val reflect.Type, maxsize int, isAutoIncr bool) string {
-	switch val.Kind() {
+func (d PostgresDialect) ToSqlType(col *ColumnMap) string {
+
+	switch col.gotype.Kind() {
 	case reflect.Bool:
 		return "boolean"
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Uint16, reflect.Uint32:
-		if isAutoIncr {
+		if col.isAutoIncr {
 			return "serial"
 		}
 		return "integer"
 	case reflect.Int64, reflect.Uint64:
-		if isAutoIncr {
+		if col.isAutoIncr {
 			return "bigserial"
 		}
 		return "bigint"
 	case reflect.Float64, reflect.Float32:
 		return "real"
 	case reflect.Slice:
-		if val.Elem().Kind() == reflect.Uint8 {
+		if col.gotype.Elem().Kind() == reflect.Uint8 {
 			return "bytea"
 		}
 	}
 
-	switch val.Name() {
+	switch col.gotype.Name() {
 	case "NullableInt64":
 		return "bigint"
 	case "NullableFloat64":
@@ -162,7 +164,8 @@ func (d PostgresDialect) ToSqlType(val reflect.Type, maxsize int, isAutoIncr boo
 		return "bytea"
 	}
 
-	if maxsize < 1 {
+	maxsize := col.MaxSize
+	if col.MaxSize < 1 {
 		maxsize = 255
 	}
 	return fmt.Sprintf("varchar(%d)", maxsize)
@@ -225,8 +228,8 @@ type MySQLDialect struct {
 	Encoding string
 }
 
-func (m MySQLDialect) ToSqlType(val reflect.Type, maxsize int, isAutoIncr bool) string {
-	switch val.Kind() {
+func (m MySQLDialect) ToSqlType(col *ColumnMap) string {
+	switch col.gotype.Kind() {
 	case reflect.Bool:
 		return "boolean"
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Uint16, reflect.Uint32:
@@ -236,12 +239,12 @@ func (m MySQLDialect) ToSqlType(val reflect.Type, maxsize int, isAutoIncr bool) 
 	case reflect.Float64, reflect.Float32:
 		return "double"
 	case reflect.Slice:
-		if val.Elem().Kind() == reflect.Uint8 {
+		if col.gotype.Elem().Kind() == reflect.Uint8 {
 			return "mediumblob"
 		}
 	}
 
-	switch val.Name() {
+	switch col.gotype.Name() {
 	case "NullableInt64":
 		return "bigint"
 	case "NullableFloat64":
@@ -252,7 +255,8 @@ func (m MySQLDialect) ToSqlType(val reflect.Type, maxsize int, isAutoIncr bool) 
 		return "mediumblob"
 	}
 
-	if maxsize < 1 {
+	maxsize := col.MaxSize
+	if col.MaxSize < 1 {
 		maxsize = 255
 	}
 	return fmt.Sprintf("varchar(%d)", maxsize)

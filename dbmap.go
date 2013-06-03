@@ -121,55 +121,83 @@ func (m *DbMap) AddTableWithName(i interface{}, name string) *TableMap {
 	return m.AddTable(i, name)
 }
 
+// CreateTablesSql returns create table SQL as a map of table names to
+// their associated CREATE TABLE statements
+func (m *DbMap) CreateTablesSql() (map[string]string, error) {
+	return m.createTables(false, false)
+}
+
 // CreateTables iterates through TableMaps registered to this DbMap and
 // executes "create table" statements against the database for each.
 //
 // This is particularly useful in unit tests where you want to create
 // and destroy the schema automatically.
 func (m *DbMap) CreateTables() error {
-	return m.createTables(false)
+	_, err := m.createTables(false, true)
+	return err
 }
 
 // CreateTablesIfNotExists is similar to CreateTables, but starts
 // each statement with "create table if not exists" so that existing
 // tables do not raise errors
 func (m *DbMap) CreateTablesIfNotExists() error {
-	return m.createTables(true)
+	_, err := m.createTables(true, true)
+	return err
 }
 
-func (m *DbMap) createTables(ifNotExists bool) error {
+func writeColumnSql(sql *bytes.Buffer, table *TableMap, col *ColumnMap) {
+	// FIXME: Why can't the column have a reference to its own table as well
+	sqltype := col.sqltype
+	if len(sqltype) == 0 {
+		sqltype = table.dbmap.Dialect.ToSqlType(col)
+	}
+	sql.WriteString(fmt.Sprintf("%s %s", table.dbmap.Dialect.QuoteField(col.ColumnName), sqltype))
+	if col.isPK {
+		sql.WriteString(" not null")
+		if len(table.keys) == 1 {
+			sql.WriteString(" primary key")
+		}
+	}
+	if col.Unique {
+		sql.WriteString(" unique")
+	}
+	if col.isAutoIncr {
+		sql.WriteString(" " + table.dbmap.Dialect.AutoIncrStr())
+	}
+}
+
+func (m *DbMap) createTables(ifNotExists, exec bool) (map[string]string, error) {
 	var err error
+	ret := map[string]string{}
+
+	sep := ", "
+	prefix := ""
+	if !exec {
+		sep = ",\n"
+		prefix = "    "
+	}
+
 	for i := range m.tables {
 		table := m.tables[i]
 
-		create := "create table"
-		if ifNotExists {
-			create += " if not exists"
-		}
 		s := bytes.Buffer{}
-		s.WriteString(fmt.Sprintf("%s %s (", create, m.Dialect.QuoteField(table.TableName)))
+		s.WriteString("create table ")
+		if ifNotExists {
+			s.WriteString("if not exists ")
+		}
+		s.WriteString(m.Dialect.QuoteField(table.TableName))
+		s.WriteString(" (")
+		if !exec {
+			s.WriteString("\n")
+		}
 		x := 0
 		for _, col := range table.columns {
 			if !col.Transient {
 				if x > 0 {
-					s.WriteString(", ")
+					s.WriteString(sep)
 				}
-				stype := m.Dialect.ToSqlType(col.gotype, col.MaxSize, col.isAutoIncr)
-				s.WriteString(fmt.Sprintf("%s %s", m.Dialect.QuoteField(col.ColumnName), stype))
-
-				if col.isPK {
-					s.WriteString(" not null")
-					if len(table.keys) == 1 {
-						s.WriteString(" primary key")
-					}
-				}
-				if col.Unique {
-					s.WriteString(" unique")
-				}
-				if col.isAutoIncr {
-					s.WriteString(fmt.Sprintf(" %s", m.Dialect.AutoIncrStr()))
-				}
-
+				s.WriteString(prefix)
+				writeColumnSql(&s, table, col)
 				x++
 			}
 		}
@@ -183,15 +211,17 @@ func (m *DbMap) createTables(ifNotExists bool) error {
 			}
 			s.WriteString(")")
 		}
-		s.WriteString(") ")
-		s.WriteString(m.Dialect.CreateTableSuffix())
-		s.WriteString(";")
-		_, err = m.Exec(s.String())
-		if err != nil {
-			break
+		s.WriteString(fmt.Sprintf(")%s;", m.Dialect.CreateTableSuffix()))
+		if exec {
+			_, err = m.Exec(s.String())
+			if err != nil {
+				break
+			}
+		} else {
+			ret[table.TableName] = s.String()
 		}
 	}
-	return err
+	return ret, err
 }
 
 // DropTables iterates through TableMaps registered to this DbMap and

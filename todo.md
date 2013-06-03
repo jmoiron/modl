@@ -1,3 +1,7 @@
+Future:
+
+- some way to designate a column as a foreign key
+
 Todo:
 
 - benchmarks that can compare mainline gorp to this fork
@@ -7,6 +11,10 @@ Todo:
 - add better interfaces to control underlying types to TableMap
 
 In Progress:
+
+(Both of these need tests)
+- alter schema creation to take advantage of ColMap.sqltype
+- alter schema creation to be able to return output (so people can look at or inspect it)
 
 Done:
 
