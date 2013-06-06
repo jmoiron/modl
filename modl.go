@@ -27,7 +27,7 @@ func (n NoKeysErr) Error() string {
 	return fmt.Sprintf("Could not find keys for table %v", n.Table)
 }
 
-var versFieldConst = "[modl_ver_field]"
+const versFieldConst = "[modl_ver_field]"
 
 // OptimisticLockError is returned by Update() or Delete() if the
 // struct being modified has a Version field and the value is not equal to
@@ -53,30 +53,10 @@ type OptimisticLockError struct {
 // Error returns a description of the cause of the lock error
 func (e OptimisticLockError) Error() string {
 	if e.RowExists {
-		return fmt.Sprintf("modl: OptimisticLockError table=%s keys=%v out of date version=%d", e.TableName, e.Keys, e.LocalVersion)
+		return fmt.Sprintf("OptimisticLockError table=%s keys=%v out of date version=%d", e.TableName, e.Keys, e.LocalVersion)
 	}
 
-	return fmt.Sprintf("modl: OptimisticLockError no row found for table=%s keys=%v", e.TableName, e.Keys)
-}
-
-// CustomScanner binds a database column value to a Go type
-type CustomScanner struct {
-	// After a row is scanned, Holder will contain the value from the database column.
-	// Initialize the CustomScanner with the concrete Go type you wish the database
-	// driver to scan the raw column into.
-	Holder interface{}
-	// Target typically holds a pointer to the target struct field to bind the Holder
-	// value to.
-	Target interface{}
-	// Binder is a custom function that converts the holder value to the target type
-	// and sets target accordingly.  This function should return error if a problem
-	// occurs converting the holder to the target.
-	Binder func(holder interface{}, target interface{}) error
-}
-
-// Bind is called automatically by modl after Scan()
-func (me CustomScanner) Bind() error {
-	return me.Binder(me.Holder, me.Target)
+	return fmt.Sprintf("OptimisticLockError no row found for table=%s keys=%v", e.TableName, e.Keys)
 }
 
 // TableMap represents a mapping between a Go struct and a database table
