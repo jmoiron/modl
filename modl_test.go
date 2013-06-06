@@ -581,12 +581,13 @@ func BenchmarkNativeCrud(b *testing.B) {
 	defer dbmap.DropTables()
 	b.StartTimer()
 
-	insert := "insert into invoice_test (Created, Updated, Memo, PersonId) values (?, ?, ?, ?)"
-	sel := "select Id, Created, Updated, Memo, PersonId from invoice_test where Id=?"
-	update := "update invoice_test set Created=?, Updated=?, Memo=?, PersonId=? where Id=?"
-	delete := "delete from invoice_test where Id=?"
+	insert := "insert into invoice_test (date_created, updated, memo, personid) values (?, ?, ?, ?)"
+	sel := "select id, date_created, updated, memo, personid from invoice_test where id=?"
+	update := "update invoice_test set date_created=?, updated=?, memo=?, personid=? where id=?"
+	delete := "delete from invoice_test where id=?"
 
-	suffix := dbmap.Dialect.AutoIncrInsertSuffix(&ColumnMap{ColumnName: "Id"})
+	suffix := dbmap.Dialect.AutoIncrInsertSuffix(&ColumnMap{ColumnName: "id"})
+
 	insert = ReBind(insert, dbmap.Dialect) + suffix
 	sel = ReBind(sel, dbmap.Dialect)
 	update = ReBind(update, dbmap.Dialect)
@@ -647,7 +648,7 @@ func BenchmarkNativeCrud(b *testing.B) {
 
 }
 
-func BenchmarkGorpCrud(b *testing.B) {
+func BenchmarkModlCrud(b *testing.B) {
 	b.StopTimer()
 	dbmap := initDbMapBench()
 	defer dbmap.DropTables()
@@ -671,12 +672,12 @@ func BenchmarkGorpCrud(b *testing.B) {
 		inv2.Updated = 2000
 		inv2.Memo = "my memo 2"
 		inv2.PersonId = 3000
-		_, err = dbmap.Update(inv2)
+		_, err = dbmap.Update(&inv2)
 		if err != nil {
 			panic(err)
 		}
 
-		_, err = dbmap.Delete(inv2)
+		_, err = dbmap.Delete(&inv2)
 		if err != nil {
 			panic(err)
 		}
