@@ -41,6 +41,9 @@ type Dialect interface {
 	// Handles quoting of a field name to ensure that it doesn't raise any
 	// SQL parsing exceptions by using a reserved word as a field name.
 	QuoteField(field string) string
+
+	// Get the driver name from a dialect
+	DriverName() string
 }
 
 func standardInsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
@@ -57,6 +60,10 @@ func standardInsertAutoIncr(exec SqlExecutor, insertSql string, params ...interf
 
 type SqliteDialect struct {
 	suffix string
+}
+
+func (d SqliteDialect) DriverName() string {
+	return "sqlite"
 }
 
 func (d SqliteDialect) ToSqlType(col *ColumnMap) string {
@@ -128,6 +135,10 @@ func (d SqliteDialect) QuoteField(f string) string {
 
 type PostgresDialect struct {
 	suffix string
+}
+
+func (d PostgresDialect) DriverName() string {
+	return "postgres"
 }
 
 func (d PostgresDialect) ToSqlType(col *ColumnMap) string {
@@ -226,6 +237,10 @@ type MySQLDialect struct {
 
 	// Encoding is the character encoding to use for created tables
 	Encoding string
+}
+
+func (d MySQLDialect) DriverName() string {
+	return "mysql"
 }
 
 func (m MySQLDialect) ToSqlType(col *ColumnMap) string {

@@ -37,7 +37,7 @@ type DbMap struct {
 
 // Return a new DbMap using the db connection and dialect
 func NewDbMap(db *sql.DB, dialect Dialect) *DbMap {
-	return &DbMap{Db: db, Dialect: dialect, Dbx: &sqlx.DB{*db}}
+	return &DbMap{Db: db, Dialect: dialect, Dbx: sqlx.NewDb(db, dialect.DriverName())}
 }
 
 // TraceOn turns on SQL statement logging for this DbMap.  After this is
