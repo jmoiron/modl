@@ -91,11 +91,8 @@ func (d SqliteDialect) ToSqlType(col *ColumnMap) string {
 		return "blob"
 	}
 
-	maxsize := col.MaxSize
-	if col.MaxSize < 1 {
-		maxsize = 255
-	}
-	return fmt.Sprintf("varchar(%d)", maxsize)
+	// sqlite ignores maxsize, so we will do that here too
+	return fmt.Sprintf("text")
 }
 
 // Returns autoincrement
