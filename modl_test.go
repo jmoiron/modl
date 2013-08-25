@@ -3,7 +3,6 @@ package modl
 import (
 	"bytes"
 	"database/sql"
-	"errors"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -69,7 +68,7 @@ func (p *Person) PreInsert(s SqlExecutor) error {
 	p.Created = time.Now().UnixNano()
 	p.Updated = p.Created
 	if p.FName == "badname" {
-		return errors.New(fmt.Sprintf("Invalid name: %s", p.FName))
+		return fmt.Errorf("Invalid name: %s", p.FName)
 	}
 	return nil
 }

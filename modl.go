@@ -12,7 +12,6 @@ package modl
 import (
 	"bytes"
 	"database/sql"
-	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"reflect"
@@ -774,7 +773,7 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 			if (k == reflect.Int) || (k == reflect.Int16) || (k == reflect.Int32) || (k == reflect.Int64) {
 				f.SetInt(id)
 			} else {
-				return errors.New(fmt.Sprintf("modl: Cannot set autoincrement value on non-Int field. SQL=%s  autoIncrIdx=%d", bi.query, bi.autoIncrIdx))
+				return fmt.Errorf("modl: Cannot set autoincrement value on non-Int field. SQL=%s  autoIncrIdx=%d", bi.query, bi.autoIncrIdx)
 			}
 		} else {
 			_, err := exec.Exec(bi.query, bi.args...)
