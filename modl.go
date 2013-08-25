@@ -468,6 +468,10 @@ type SqlExecutor interface {
 	queryRowx(query string, args ...interface{}) *sqlx.Row
 }
 
+// Compile-time check that DbMap and Transaction implement the SqlExecutor
+// interface.
+var _, _ SqlExecutor = &DbMap{}, &Transaction{}
+
 ///////////////
 
 // Transaction represents a database transaction.
