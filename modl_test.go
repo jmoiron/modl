@@ -1,12 +1,13 @@
 package modl
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
-	_ "github.com/ziutek/mymysql/godrv"
 	"log"
 	"os"
 	"reflect"
@@ -710,6 +711,35 @@ func initDbMap() *DbMap {
 	return dbmap
 }
 
+func TestQuoteTableNames(t *testing.T) {
+	dbmap := initDbMap()
+	defer dbmap.DropTables()
+
+	quotedTableName := dbmap.Dialect.QuoteField("person_test")
+
+	// Use a buffer to hold the log to check generated queries
+	logBuffer := &bytes.Buffer{}
+	dbmap.TraceOn("", log.New(logBuffer, "modltest:", log.Lmicroseconds))
+
+	// Create some rows
+	p1 := &Person{0, 0, 0, "bob", "smith", 0}
+	errorTemplate := "Expected quoted table name %v in query but didn't find it"
+
+	// Check if Insert quotes the table name
+	id := dbmap.Insert(p1)
+	if !bytes.Contains(logBuffer.Bytes(), []byte(quotedTableName)) {
+		t.Errorf(errorTemplate, quotedTableName)
+	}
+	logBuffer.Reset()
+
+	// Check if Get quotes the table name
+	dbmap.Get(Person{}, id)
+	if !bytes.Contains(logBuffer.Bytes(), []byte(quotedTableName)) {
+		t.Errorf(errorTemplate, quotedTableName)
+	}
+	logBuffer.Reset()
+}
+
 func initDbMapNulls() *DbMap {
 	dbmap := newDbMap()
 	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
@@ -742,7 +772,7 @@ func connect(driver string) *sql.DB {
 func dialectAndDriver() (Dialect, string) {
 	switch os.Getenv("MODL_TEST_DIALECT") {
 	case "mysql":
-		return MySQLDialect{"InnoDB", "UTF8"}, "mymysql"
+		return MySQLDialect{"InnoDB", "UTF8"}, "mysql"
 	case "postgres":
 		return PostgresDialect{}, "postgres"
 	case "sqlite":
