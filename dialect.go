@@ -42,6 +42,9 @@ type Dialect interface {
 	// SQL parsing exceptions by using a reserved word as a field name.
 	QuoteField(field string) string
 
+	// string used to truncate tables
+	TruncateClause() string
+
 	// Get the driver name from a dialect
 	DriverName() string
 }
@@ -124,6 +127,13 @@ func (d SqliteDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, params
 
 func (d SqliteDialect) QuoteField(f string) string {
 	return `"` + f + `"`
+}
+
+// With sqlite, there technically isn't a TRUNCATE statement,
+// but a DELETE FROM uses a truncate optimization:
+// http://www.sqlite.org/lang_delete.html
+func (d SqliteDialect) TruncateClause() string {
+	return "delete from"
 }
 
 ///////////////////////////////////////////////////////
@@ -222,6 +232,10 @@ func (d PostgresDialect) QuoteField(f string) string {
 	return `"` + strings.ToLower(f) + `"`
 }
 
+func (d PostgresDialect) TruncateClause() string {
+	return "truncate"
+}
+
 ///////////////////////////////////////////////////////
 // MySQL //
 ///////////
@@ -318,4 +332,8 @@ func ReBind(query string, dialect Dialect) string {
 		j = strings.Index(query, "?")
 	}
 	return query
+}
+
+func (m MySQLDialect) TruncateClause() string {
+	return "truncate"
 }

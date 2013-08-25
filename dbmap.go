@@ -370,6 +370,19 @@ func (m *DbMap) TableForType(t reflect.Type) *TableMap {
 	return nil
 }
 
+// Truncate all tables in the DbMap
+func (m *DbMap) TruncateTables() error {
+	var err error
+	for i := range m.tables {
+		table := m.tables[i]
+		_, e := m.Exec(fmt.Sprintf("%s %s;", m.Dialect.TruncateClause(), m.Dialect.QuoteField(table.TableName)))
+		if e != nil {
+			err = e
+		}
+	}
+	return err
+}
+
 func (m *DbMap) queryRow(query string, args ...interface{}) *sql.Row {
 	m.trace(query, args)
 	return m.Db.QueryRow(query, args...)

@@ -711,6 +711,38 @@ func initDbMap() *DbMap {
 	return dbmap
 }
 
+func TestTruncateTables(t *testing.T) {
+	dbmap := initDbMap()
+	defer dbmap.DropTables()
+	err := dbmap.CreateTablesIfNotExists()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Insert some data
+	p1 := &Person{0, 0, 0, "Bob", "Smith", 0}
+	dbmap.Insert(p1)
+	inv := &Invoice{0, 0, 1, "my invoice", 0, true}
+	dbmap.Insert(inv)
+
+	err = dbmap.TruncateTables()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Make sure all rows are deleted
+	people := []Person{}
+	invoices := []Invoice{}
+	dbmap.Select(&people, "SELECT * FROM person_test")
+	if len(people) != 0 {
+		t.Errorf("Expected 0 person rows, got %d", len(people))
+	}
+	dbmap.Select(&invoices, "SELECT * FROM invoice_test")
+	if len(invoices) != 0 {
+		t.Errorf("Expected 0 invoice rows, got %d", len(invoices))
+	}
+}
+
 func TestQuoteTableNames(t *testing.T) {
 	dbmap := initDbMap()
 	defer dbmap.DropTables()
