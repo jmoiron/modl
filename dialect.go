@@ -229,7 +229,7 @@ func (d PostgresDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, para
 		return id, err
 	}
 
-	return 0, errors.New("No serial value returned for insert: " + insertSql)
+	return 0, errors.New("No serial value returned for insert: " + insertSql + ", error: " + rows.Err().Error())
 }
 
 func (d PostgresDialect) QuoteField(f string) string {
