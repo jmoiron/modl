@@ -515,11 +515,13 @@ func (t *Transaction) Exec(query string, args ...interface{}) (sql.Result, error
 
 // Commits the underlying database transaction
 func (t *Transaction) Commit() error {
+	t.dbmap.trace("commit;")
 	return t.tx.Commit()
 }
 
 // Rolls back the underlying database transaction
 func (t *Transaction) Rollback() error {
+	t.dbmap.trace("rollback;")
 	return t.tx.Rollback()
 }
 

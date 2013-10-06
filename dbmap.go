@@ -332,6 +332,7 @@ func (m *DbMap) Exec(query string, args ...interface{}) (sql.Result, error) {
 
 // Begin starts a modl Transaction
 func (m *DbMap) Begin() (*Transaction, error) {
+	m.trace("begin;")
 	tx, err := m.Dbx.Beginx()
 	if err != nil {
 		return nil, err
