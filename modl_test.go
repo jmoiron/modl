@@ -702,6 +702,7 @@ func initDbMap() *DbMap {
 	dbmap.AddTableWithName(Invoice{}, "invoice_test").SetKeys(true, "id")
 	dbmap.AddTableWithName(Person{}, "person_test").SetKeys(true, "id")
 	dbmap.AddTableWithName(WithIgnoredColumn{}, "ignored_column_test").SetKeys(true, "id")
+	dbmap.AddTableWithName(WithTime{}, "time_test").SetKeys(true, "Id")
 	err := dbmap.CreateTables()
 	if err != nil {
 		panic(err)
@@ -769,6 +770,37 @@ func TestQuoteTableNames(t *testing.T) {
 		t.Errorf(errorTemplate, quotedTableName)
 	}
 	logBuffer.Reset()
+}
+
+type WithTime struct {
+	Id   int64
+	Time time.Time
+}
+
+func TestWithTime(t *testing.T) {
+	dbmap := initDbMap()
+	defer dbmap.DropTables()
+
+	// FIXME: there seems to be a bug with go-sql-driver and timezones?
+	// MySQL doesn't have any timestamp support, but since it is not
+	// sending any, the scan assumes UTC, so the scanner should
+	// probably convert to UTC before storing.  Also, note that time.Time
+	// support requires a special bit to be added to the DSN
+	t1, err := time.Parse("2006-01-02 15:04:05 -0700 MST",
+		"2013-08-09 21:30:43 +0000 UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w1 := WithTime{1, t1}
+	dbmap.Insert(&w1)
+
+	w2 := WithTime{}
+	dbmap.Get(&w2, w1.Id)
+
+	if w1.Time.UnixNano() != w2.Time.UnixNano() {
+		t.Errorf("%v != %v", w1, w2)
+	}
 }
 
 func initDbMapNulls() *DbMap {

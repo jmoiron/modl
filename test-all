@@ -20,7 +20,7 @@ if [ -f "./environ" ]; then
     . ./environ
 fi
 
-set -e
+# set -e
 
 if [ -n "$MODL_MYSQL_DSN" ]; then
     export MODL_TEST_DSN="$MODL_MYSQL_DSN"

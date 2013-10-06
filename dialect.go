@@ -92,6 +92,8 @@ func (d SqliteDialect) ToSqlType(col *ColumnMap) string {
 		return "integer"
 	case "NullableBytes":
 		return "blob"
+	case "Time", "NullTime":
+		return "datetime"
 	}
 
 	// sqlite ignores maxsize, so we will do that here too
@@ -180,6 +182,8 @@ func (d PostgresDialect) ToSqlType(col *ColumnMap) string {
 		return "smallint"
 	case "NullableBytes":
 		return "bytea"
+	case "Time", "Nulltime":
+		return "timestamp with time zone"
 	}
 
 	maxsize := col.MaxSize
@@ -279,6 +283,8 @@ func (m MySQLDialect) ToSqlType(col *ColumnMap) string {
 		return "tinyint"
 	case "NullableBytes":
 		return "mediumblob"
+	case "Time", "NullTime":
+		return "datetime"
 	}
 
 	maxsize := col.MaxSize

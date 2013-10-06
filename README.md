@@ -52,11 +52,11 @@ Since modl is a gorp fork, here are some of its major behavioral differences:
 To use the `test-all` script, set the following environment variables:
 
 ```sh
-# mysql DSN, like "modltest/modltest/modltest"
-MODL_MYSQL_DSN="dbname/username/password"
+# mysql DSN, like:
+MODL_MYSQL_DSN="username:password@/dbname"
 
 # postgres DSN, like:
-MODL_POSTGRES_DSN="username=dbname password=pw dbname=dbname ssl-node=disable"
+MODL_POSTGRES_DSN="username=username password=pw dbname=dbname ssl-node=disable"
 
 # sqlite DSN, which is a path
 MODL_SQLITE_DSN="/dev/shm/modltest.db"
