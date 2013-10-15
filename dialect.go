@@ -3,6 +3,7 @@ package modl
 import (
 	"errors"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"reflect"
 	"strings"
 )
@@ -233,7 +234,7 @@ func (d PostgresDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, para
 }
 
 func (d PostgresDialect) QuoteField(f string) string {
-	return `"` + strings.ToLower(f) + `"`
+	return `"` + sqlx.NameMapper(f) + `"`
 }
 
 func (d PostgresDialect) TruncateClause() string {

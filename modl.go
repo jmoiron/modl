@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"reflect"
-	"strings"
 )
 
 type NoKeysErr struct {
@@ -100,7 +99,7 @@ func (t *TableMap) ResetSql() {
 func (t *TableMap) SetKeys(isAutoIncr bool, fieldNames ...string) *TableMap {
 	t.keys = make([]*ColumnMap, 0)
 	for _, name := range fieldNames {
-		colmap := t.ColMap(strings.ToLower(name))
+		colmap := t.ColMap(sqlx.NameMapper(name))
 		colmap.isPK = true
 		colmap.isAutoIncr = isAutoIncr
 		t.keys = append(t.keys, colmap)

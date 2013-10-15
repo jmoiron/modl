@@ -10,7 +10,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	"log"
 	"reflect"
-	"strings"
 )
 
 // DbMap is the root modl mapping object. Create one of these for each
@@ -75,7 +74,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 
 	t := reflect.TypeOf(i)
 	if len(Name) == 0 {
-		Name = strings.ToLower(t.Name())
+		Name = sqlx.NameMapper(t.Name())
 	}
 
 	// check if we have a table for this type already
@@ -97,7 +96,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 		f := t.Field(i)
 		columnName := f.Tag.Get("db")
 		if columnName == "" {
-			columnName = strings.ToLower(f.Name)
+			columnName = sqlx.NameMapper(f.Name)
 		}
 
 		cm := &ColumnMap{
