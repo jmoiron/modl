@@ -91,7 +91,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 	tmap.setupHooks(i)
 
 	n := t.NumField()
-	tmap.columns = make([]*ColumnMap, 0, n)
+	tmap.Columns = make([]*ColumnMap, 0, n)
 	for i := 0; i < n; i++ {
 		f := t.Field(i)
 		columnName := f.Tag.Get("db")
@@ -105,9 +105,9 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 			fieldName:  f.Name,
 			gotype:     f.Type,
 		}
-		tmap.columns = append(tmap.columns, cm)
+		tmap.Columns = append(tmap.Columns, cm)
 		if cm.fieldName == "Version" {
-			tmap.version = tmap.columns[len(tmap.columns)-1]
+			tmap.version = tmap.Columns[len(tmap.Columns)-1]
 		}
 	}
 	m.tables = append(m.tables, tmap)
@@ -153,7 +153,7 @@ func writeColumnSql(sql *bytes.Buffer, table *TableMap, col *ColumnMap) {
 	sql.WriteString(fmt.Sprintf("%s %s", table.dbmap.Dialect.QuoteField(col.ColumnName), sqltype))
 	if col.isPK {
 		sql.WriteString(" not null")
-		if len(table.keys) == 1 {
+		if len(table.Keys) == 1 {
 			sql.WriteString(" primary key")
 		}
 	}
@@ -190,7 +190,7 @@ func (m *DbMap) createTables(ifNotExists, exec bool) (map[string]string, error) 
 			s.WriteString("\n")
 		}
 		x := 0
-		for _, col := range table.columns {
+		for _, col := range table.Columns {
 			if !col.Transient {
 				if x > 0 {
 					s.WriteString(sep)
@@ -200,13 +200,13 @@ func (m *DbMap) createTables(ifNotExists, exec bool) (map[string]string, error) 
 				x++
 			}
 		}
-		if len(table.keys) > 1 {
+		if len(table.Keys) > 1 {
 			s.WriteString(", primary key (")
-			for x := range table.keys {
+			for x := range table.Keys {
 				if x > 0 {
 					s.WriteString(", ")
 				}
-				s.WriteString(m.Dialect.QuoteField(table.keys[x].ColumnName))
+				s.WriteString(m.Dialect.QuoteField(table.Keys[x].ColumnName))
 			}
 			s.WriteString(")")
 		}

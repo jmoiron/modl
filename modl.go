@@ -248,7 +248,7 @@ func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) erro
 	if table == nil {
 		return fmt.Errorf("Could not find table for %v", dest)
 	}
-	if len(table.keys) < 1 {
+	if len(table.Keys) < 1 {
 		return &NoKeysErr{table}
 	}
 
