@@ -12,9 +12,9 @@ import (
 type TableMap struct {
 	// Name of database table.
 	TableName  string
+	Keys       []*ColumnMap
+	Columns    []*ColumnMap
 	gotype     reflect.Type
-	columns    []*ColumnMap
-	keys       []*ColumnMap
 	version    *ColumnMap
 	insertPlan bindPlan
 	updatePlan bindPlan
@@ -47,12 +47,12 @@ func (t *TableMap) ResetSql() {
 //
 // Automatically calls ResetSql() to ensure SQL statements are regenerated.
 func (t *TableMap) SetKeys(isAutoIncr bool, fieldNames ...string) *TableMap {
-	t.keys = make([]*ColumnMap, 0)
+	t.Keys = make([]*ColumnMap, 0)
 	for _, name := range fieldNames {
 		colmap := t.ColMap(sqlx.NameMapper(name))
 		colmap.isPK = true
 		colmap.isAutoIncr = isAutoIncr
-		t.keys = append(t.keys, colmap)
+		t.Keys = append(t.Keys, colmap)
 	}
 	t.ResetSql()
 
@@ -75,7 +75,7 @@ func (t *TableMap) ColMap(field string) *ColumnMap {
 
 // Return the column map for this field, or nil if it can't be found.
 func colMapOrNil(t *TableMap, field string) *ColumnMap {
-	for _, col := range t.columns {
+	for _, col := range t.Columns {
 		if col.fieldName == field || col.ColumnName == field {
 			return col
 		}
@@ -103,7 +103,7 @@ func (t *TableMap) bindGet() bindPlan {
 		s.WriteString("select ")
 
 		x := 0
-		for _, col := range t.columns {
+		for _, col := range t.Columns {
 			if !col.Transient {
 				if x > 0 {
 					s.WriteString(",")
@@ -116,8 +116,8 @@ func (t *TableMap) bindGet() bindPlan {
 		s.WriteString(" from ")
 		s.WriteString(t.dbmap.Dialect.QuoteField(t.TableName))
 		s.WriteString(" where ")
-		for x := range t.keys {
-			col := t.keys[x]
+		for x := range t.Keys {
+			col := t.Keys[x]
 			if x > 0 {
 				s.WriteString(" and ")
 			}
@@ -143,8 +143,8 @@ func (t *TableMap) bindDelete(elem reflect.Value) bindInstance {
 		s := bytes.Buffer{}
 		s.WriteString(fmt.Sprintf("delete from %s", t.dbmap.Dialect.QuoteField(t.TableName)))
 
-		for y := range t.columns {
-			col := t.columns[y]
+		for y := range t.Columns {
+			col := t.Columns[y]
 			if !col.Transient {
 				if col == t.version {
 					plan.versField = col.fieldName
@@ -153,8 +153,8 @@ func (t *TableMap) bindDelete(elem reflect.Value) bindInstance {
 		}
 
 		s.WriteString(" where ")
-		for x := range t.keys {
-			k := t.keys[x]
+		for x := range t.Keys {
+			k := t.Keys[x]
 			if x > 0 {
 				s.WriteString(" and ")
 			}
@@ -190,8 +190,8 @@ func (t *TableMap) bindUpdate(elem reflect.Value) bindInstance {
 		s.WriteString(fmt.Sprintf("update %s set ", t.dbmap.Dialect.QuoteField(t.TableName)))
 		x := 0
 
-		for y := range t.columns {
-			col := t.columns[y]
+		for y := range t.Columns {
+			col := t.Columns[y]
 			if !col.isPK && !col.Transient {
 				if x > 0 {
 					s.WriteString(", ")
@@ -211,8 +211,8 @@ func (t *TableMap) bindUpdate(elem reflect.Value) bindInstance {
 		}
 
 		s.WriteString(" where ")
-		for y := range t.keys {
-			col := t.keys[y]
+		for y := range t.Keys {
+			col := t.Keys[y]
 			if y > 0 {
 				s.WriteString(" and ")
 			}
@@ -251,8 +251,8 @@ func (t *TableMap) bindInsert(elem reflect.Value) bindInstance {
 
 		x := 0
 		first := true
-		for y := range t.columns {
-			col := t.columns[y]
+		for y := range t.Columns {
+			col := t.Columns[y]
 
 			if !col.Transient {
 				if !first {
@@ -283,7 +283,7 @@ func (t *TableMap) bindInsert(elem reflect.Value) bindInstance {
 		s.WriteString(s2.String())
 		s.WriteString(")")
 		if plan.autoIncrIdx > -1 {
-			s.WriteString(t.dbmap.Dialect.AutoIncrInsertSuffix(t.columns[plan.autoIncrIdx]))
+			s.WriteString(t.dbmap.Dialect.AutoIncrInsertSuffix(t.Columns[plan.autoIncrIdx]))
 		}
 		s.WriteString(";")
 
@@ -361,7 +361,7 @@ func tableForPointer(m *DbMap, i interface{}, checkPk bool) (*TableMap, reflect.
 	if t == nil {
 		return nil, v, fmt.Errorf("Could not find table for %v", t)
 	}
-	if checkPk && len(t.keys) < 1 {
+	if checkPk && len(t.Keys) < 1 {
 		return t, v, &NoKeysErr{t}
 	}
 	return t, v, nil
