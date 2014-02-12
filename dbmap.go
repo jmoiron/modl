@@ -372,10 +372,24 @@ func (m *DbMap) TableForType(t reflect.Type) *TableMap {
 
 // Truncate all tables in the DbMap
 func (m *DbMap) TruncateTables() error {
+	return m.truncateTables(false)
+}
+
+// Truncate all tables in the DbMap and reset identity counter
+func (m *DbMap) TruncateTablesIdentityRestart() error {
+	return m.truncateTables(true)
+}
+
+func (m *DbMap) truncateTables(restartIdentity bool) error {
 	var err error
+	var restartClause string
 	for i := range m.tables {
 		table := m.tables[i]
-		_, e := m.Exec(fmt.Sprintf("%s %s;", m.Dialect.TruncateClause(), m.Dialect.QuoteField(table.TableName)))
+		if restartIdentity {
+			restartClause = m.Dialect.RestartIdentityClause(table.TableName)
+		}
+
+		_, e := m.Exec(fmt.Sprintf("%s %s %s;", m.Dialect.TruncateClause(), m.Dialect.QuoteField(table.TableName), restartClause))
 		if e != nil {
 			err = e
 		}

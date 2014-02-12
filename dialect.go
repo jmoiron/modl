@@ -46,6 +46,9 @@ type Dialect interface {
 	// string used to truncate tables
 	TruncateClause() string
 
+	// string used to reset identity counter when truncating tables
+	RestartIdentityClause(table string) string
+
 	// Get the driver name from a dialect
 	DriverName() string
 }
@@ -137,6 +140,10 @@ func (d SqliteDialect) QuoteField(f string) string {
 // http://www.sqlite.org/lang_delete.html
 func (d SqliteDialect) TruncateClause() string {
 	return "delete from"
+}
+
+func (d SqliteDialect) RestartIdentityClause(table string) string {
+	return ""
 }
 
 ///////////////////////////////////////////////////////
@@ -241,6 +248,10 @@ func (d PostgresDialect) TruncateClause() string {
 	return "truncate"
 }
 
+func (d PostgresDialect) RestartIdentityClause(table string) string {
+	return "restart identity"
+}
+
 ///////////////////////////////////////////////////////
 // MySQL //
 ///////////
@@ -343,4 +354,8 @@ func ReBind(query string, dialect Dialect) string {
 
 func (m MySQLDialect) TruncateClause() string {
 	return "truncate"
+}
+
+func (d MySQLDialect) RestartIdentityClause(table string) string {
+	return "; alter table " + table + " AUTO_INCREMENT = 1"
 }
