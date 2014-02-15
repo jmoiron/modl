@@ -743,6 +743,44 @@ func TestTruncateTables(t *testing.T) {
 	}
 }
 
+func TestTruncateTablesIdentityRestart(t *testing.T) {
+	dbmap := initDbMap()
+	defer dbmap.DropTables()
+	err := dbmap.CreateTablesIfNotExists()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Insert some data
+	p1 := &Person{0, 0, 0, "Bob", "Smith", 0}
+	dbmap.Insert(p1)
+	inv := &Invoice{0, 0, 1, "my invoice", 0, true}
+	dbmap.Insert(inv)
+
+	err = dbmap.TruncateTablesIdentityRestart()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Make sure all rows are deleted
+	people := []Person{}
+	invoices := []Invoice{}
+	dbmap.Select(&people, "SELECT * FROM person_test")
+	if len(people) != 0 {
+		t.Errorf("Expected 0 person rows, got %d", len(people))
+	}
+	dbmap.Select(&invoices, "SELECT * FROM invoice_test")
+	if len(invoices) != 0 {
+		t.Errorf("Expected 0 invoice rows, got %d", len(invoices))
+	}
+
+	p2 := &Person{0, 0, 0, "Other", "Person", 0}
+	dbmap.Insert(p2)
+	if p2.Id != int64(1) {
+		t.Errorf("Expected new person Id to be equal to 1, was %d", p2.Id)
+	}
+}
+
 func TestQuoteTableNames(t *testing.T) {
 	dbmap := initDbMap()
 	defer dbmap.DropTables()
