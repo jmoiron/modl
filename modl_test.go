@@ -870,6 +870,10 @@ func connect(driver string) *sql.DB {
 	if err != nil {
 		panic("Error connecting to db: " + err.Error())
 	}
+	err = db.Ping()
+	if err != nil {
+		panic("Error connecting to db: " + err.Error())
+	}
 	return db
 }
 
