@@ -25,6 +25,7 @@ fi
 if [ -n "$MODL_MYSQL_DSN" ]; then
     export MODL_TEST_DSN="$MODL_MYSQL_DSN"
     export MODL_TEST_DIALECT="mysql"
+    echo "Testing MySQL"
     go test $@
 else
     echo "Skipping MySQL, \$MODL_MYSQL_DSN=$MODL_MYSQL_DSN"
@@ -36,6 +37,7 @@ fi
 if [ -n "$MODL_POSTGRES_DSN" ]; then
     export MODL_TEST_DSN="$MODL_POSTGRES_DSN"
     export MODL_TEST_DIALECT="postgres"
+    echo "Testing PostgreSQL"
     go test $@
 else
     echo "Skipping PostgreSQL, \$MODL_POSTGRES_DSN=$MODL_POSTGRES_DSN"
@@ -47,6 +49,7 @@ fi
 if [ -n "$MODL_SQLITE_DSN" ]; then
     export MODL_TEST_DSN="$MODL_SQLITE_DSN"
     export MODL_TEST_DIALECT="sqlite"
+    echo "Testing SQLite"
     go test $@
 else
     echo "Skipping SQLite, \$MODL_SQLITE_DSN=$MODL_SQLITE_DSN"

@@ -3,9 +3,10 @@ package modl
 import (
 	"errors"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"reflect"
 	"strings"
+
+	"github.com/jmoiron/sqlx"
 )
 
 // The Dialect interface encapsulates behaviors that differ across
@@ -47,6 +48,8 @@ type Dialect interface {
 	TruncateClause() string
 
 	// string used to reset identity counter when truncating tables
+	// if the string starts with a ';', it is assumed to be a separate query
+	// and is executed separately
 	RestartIdentityClause(table string) string
 
 	// Get the driver name from a dialect
@@ -143,7 +146,7 @@ func (d SqliteDialect) TruncateClause() string {
 }
 
 func (d SqliteDialect) RestartIdentityClause(table string) string {
-	return ""
+	return "; DELETE FROM sqlite_sequence WHERE name='" + table + "'"
 }
 
 ///////////////////////////////////////////////////////

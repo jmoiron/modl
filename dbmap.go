@@ -7,9 +7,10 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"log"
 	"reflect"
+
+	"github.com/jmoiron/sqlx"
 )
 
 // DbMap is the root modl mapping object. Create one of these for each
@@ -389,12 +390,23 @@ func (m *DbMap) truncateTables(restartIdentity bool) error {
 			restartClause = m.Dialect.RestartIdentityClause(table.TableName)
 		}
 
-		_, e := m.Exec(fmt.Sprintf("%s %s %s;", m.Dialect.TruncateClause(), m.Dialect.QuoteField(table.TableName), restartClause))
-		if e != nil {
-			err = e
+		if len(restartClause) > 0 && restartClause[0] == ';' {
+			_, err = m.Exec(fmt.Sprintf("%s %s;", m.Dialect.TruncateClause(), m.Dialect.QuoteField(table.TableName)))
+			if err != nil {
+				return err
+			}
+			_, err = m.Exec(restartClause[1:])
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err := m.Exec(fmt.Sprintf("%s %s %s;", m.Dialect.TruncateClause(), m.Dialect.QuoteField(table.TableName), restartClause))
+			if err != nil {
+				return err
+			}
 		}
 	}
-	return err
+	return nil
 }
 
 func (m *DbMap) queryRow(query string, args ...interface{}) *sql.Row {

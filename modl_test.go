@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var _ = log.Fatal
@@ -122,7 +123,9 @@ func TestCreateTablesIfNotExists(t *testing.T) {
 func TestPersistentUser(t *testing.T) {
 	dbmap := newDbMap()
 	dbmap.Exec("drop table if exists persistentuser")
-	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
+	if len(os.Getenv("MODL_TEST_TRACE")) > 0 {
+		dbmap.TraceOn("test", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
+	}
 	dbmap.AddTable(PersistentUser{}).SetKeys(false, "mykey")
 	err := dbmap.CreateTablesIfNotExists()
 	if err != nil {
