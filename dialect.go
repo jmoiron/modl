@@ -9,50 +9,51 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// The Dialect interface encapsulates behaviors that differ across
-// SQL databases.  At present the Dialect is only used by CreateTables()
-// but this could change in the future
+// Dialect is an interface that encapsulates behaviors that differ across
+// SQL databases.
 type Dialect interface {
 
-	// ToSqlType returns the SQL column type to use when creating a
-	// table of the given Go Type.  maxsize can be used to switch based on
-	// size.  For example, in MySQL []byte could map to BLOB, MEDIUMBLOB,
-	// or LONGBLOB depending on the maxsize
+	// ToSqlType returns the SQL column type to use when creating a table of the
+	// given Go Type.  maxsize can be used to switch based on size.  For example,
+	// in MySQL []byte could map to BLOB, MEDIUMBLOB, or LONGBLOB depending on the
+	// maxsize
 	ToSqlType(col *ColumnMap) string
 
-	// string to append to primary key column definitions
+	// AutoIncrStr returns a string to append to primary key column definitions
 	AutoIncrStr() string
 
+	//AutoIncrBindValue returns the default value for an auto increment row in an insert.
 	AutoIncrBindValue() string
 
+	// AutoIncrInsertSuffix returns a string to append to an insert statement which
+	// will make it return the auto-increment key on insert.
 	AutoIncrInsertSuffix(col *ColumnMap) string
 
-	// string to append to "create table" statement for vendor specific
-	// table attributes
+	// CreateTableSuffix returns a string to append to "create table" statement for
+	// vendor specific table attributes, eg. MySQL engine
 	CreateTableSuffix() string
 
+	// InsertAutoIncr
 	InsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error)
 
-	// bind variable string to use when forming SQL statements
-	// in many dbs it is "?", but Postgres appears to use $1
+	// BindVar returns the variable string to use when forming SQL statements
+	// in many dbs it is "?", but Postgres requires '$#'
 	//
-	// i is a zero based index of the bind variable in this statement
-	//
+	// The supplied int is a zero based index of the bindvar in the statement
 	BindVar(i int) string
 
-	// Handles quoting of a field name to ensure that it doesn't raise any
-	// SQL parsing exceptions by using a reserved word as a field name.
+	// QuoteField returns a quoted version of the field name.
 	QuoteField(field string) string
 
-	// string used to truncate tables
+	// TruncateClause is a string used to truncate tables.
 	TruncateClause() string
 
-	// string used to reset identity counter when truncating tables
-	// if the string starts with a ';', it is assumed to be a separate query
-	// and is executed separately
+	// RestartIdentityClause returns a string used to reset the identity counter
+	// when truncating tables.  If the string starts with a ';', it is assumed to
+	// be a separate query and is executed separately.
 	RestartIdentityClause(table string) string
 
-	// Get the driver name from a dialect
+	// DriverName returns the driver name for a dialect.
 	DriverName() string
 }
 
@@ -64,18 +65,19 @@ func standardInsertAutoIncr(exec SqlExecutor, insertSql string, params ...interf
 	return res.LastInsertId()
 }
 
-///////////////////////////////////////////////////////
-// sqlite3 //
-/////////////
+// -- sqlite3
 
+// SqliteDialect implements the Dialect interface for Sqlite3.
 type SqliteDialect struct {
 	suffix string
 }
 
+// DriverName returns the driverName for sqlite.
 func (d SqliteDialect) DriverName() string {
 	return "sqlite"
 }
 
+// ToSqlType maps go types to sqlite types.
 func (d SqliteDialect) ToSqlType(col *ColumnMap) string {
 	switch col.gotype.Kind() {
 	case reflect.Bool:
@@ -107,60 +109,67 @@ func (d SqliteDialect) ToSqlType(col *ColumnMap) string {
 	return fmt.Sprintf("text")
 }
 
-// Returns autoincrement
+// AutoIncrStr returns autoincrement clause for sqlite.
 func (d SqliteDialect) AutoIncrStr() string {
 	return "autoincrement"
 }
 
+// AutoIncrBindValue returns the bind value for auto incr fields in sqlite.
 func (d SqliteDialect) AutoIncrBindValue() string {
 	return "null"
 }
 
+// AutoIncrInsertSuffix returns the auto incr insert suffix for sqlite.
 func (d SqliteDialect) AutoIncrInsertSuffix(col *ColumnMap) string {
 	return ""
 }
 
-// Returns suffix
+// CreateTableSuffix returns d.suffix
 func (d SqliteDialect) CreateTableSuffix() string {
 	return d.suffix
 }
 
-// Returns "?"
+// BindVar returns "?", the simpler of the sqlite bindvars.
 func (d SqliteDialect) BindVar(i int) string {
 	return "?"
 }
 
+// InsertAutoIncr runs the standard
 func (d SqliteDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
 	return standardInsertAutoIncr(exec, insertSql, params...)
 }
 
+// QuoteField quotes f with "" for sqlite
 func (d SqliteDialect) QuoteField(f string) string {
 	return `"` + f + `"`
 }
 
-// With sqlite, there technically isn't a TRUNCATE statement,
-// but a DELETE FROM uses a truncate optimization:
+// TruncateClause returns the truncate clause for sqlite.  There is no TRUNCATE
+// statement in sqlite3, but DELETE FROM uses a truncate optimization:
 // http://www.sqlite.org/lang_delete.html
 func (d SqliteDialect) TruncateClause() string {
 	return "delete from"
 }
 
+// RestartIdentityClause restarts the sqlite_sequence for the provided table.
+// It is executed by TruncateTable as a separate query.
 func (d SqliteDialect) RestartIdentityClause(table string) string {
 	return "; DELETE FROM sqlite_sequence WHERE name='" + table + "'"
 }
 
-///////////////////////////////////////////////////////
-// PostgreSQL //
-////////////////
+// -- PostgreSQL
 
+// PostgresDialect implements the Dialect interface for PostgreSQL.
 type PostgresDialect struct {
 	suffix string
 }
 
+// DriverName returns the driverName for postgres.
 func (d PostgresDialect) DriverName() string {
 	return "postgres"
 }
 
+// ToSqlType maps go types to postgres types.
 func (d PostgresDialect) ToSqlType(col *ColumnMap) string {
 
 	switch col.gotype.Kind() {
@@ -204,29 +213,34 @@ func (d PostgresDialect) ToSqlType(col *ColumnMap) string {
 	return fmt.Sprintf("varchar(%d)", maxsize)
 }
 
-// Returns empty string
+// AutoIncrStr returns empty string, as it's not used in postgres.
 func (d PostgresDialect) AutoIncrStr() string {
 	return ""
 }
 
+// AutoIncrBindValue returns 'default' for default auto incr bind values.
 func (d PostgresDialect) AutoIncrBindValue() string {
 	return "default"
 }
 
+// AutoIncrInsertSuffix appnds 'returning colname' to a query so that the
+// new autoincrement value for the column name is returned by Insert.
 func (d PostgresDialect) AutoIncrInsertSuffix(col *ColumnMap) string {
 	return " returning " + col.ColumnName
 }
 
-// Returns suffix
+// CreateTableSuffix returns the configured suffix.
 func (d PostgresDialect) CreateTableSuffix() string {
 	return d.suffix
 }
 
-// Returns "$(i+1)"
+// BindVar returns "$(i+1)"
 func (d PostgresDialect) BindVar(i int) string {
 	return fmt.Sprintf("$%d", i+1)
 }
 
+// InsertAutoIncr inserts via a query and reads the resultant rows for the new
+// auto increment ID, as it's not returned with the result in PostgreSQL.
 func (d PostgresDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
 	rows, err := exec.query(insertSql, params...)
 	if err != nil {
@@ -243,23 +257,25 @@ func (d PostgresDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, para
 	return 0, errors.New("No serial value returned for insert: " + insertSql + ", error: " + rows.Err().Error())
 }
 
+// QuoteField quotes f with ""
 func (d PostgresDialect) QuoteField(f string) string {
 	return `"` + sqlx.NameMapper(f) + `"`
 }
 
+// TruncateClause returns 'truncate'
 func (d PostgresDialect) TruncateClause() string {
 	return "truncate"
 }
 
+// RestartIdentityClause returns 'restart identity', which will restart serial
+// sequences for this table at the same time as a truncation is performed.
 func (d PostgresDialect) RestartIdentityClause(table string) string {
 	return "restart identity"
 }
 
-///////////////////////////////////////////////////////
-// MySQL //
-///////////
+// -- MySQL
 
-// Implementation of Dialect for MySQL databases.
+// MySQLDialect is an implementation of Dialect for MySQL databases.
 type MySQLDialect struct {
 
 	// Engine is the storage engine to use "InnoDB" vs "MyISAM" for example
@@ -269,11 +285,14 @@ type MySQLDialect struct {
 	Encoding string
 }
 
+// DriverName returns "mysql", used by the ziutek and the go-sql-driver
+// versions of the MySQL driver.
 func (d MySQLDialect) DriverName() string {
 	return "mysql"
 }
 
-func (m MySQLDialect) ToSqlType(col *ColumnMap) string {
+// ToSqlType maps go types to MySQL types.
+func (d MySQLDialect) ToSqlType(col *ColumnMap) string {
 	switch col.gotype.Kind() {
 	case reflect.Bool:
 		return "boolean"
@@ -309,38 +328,45 @@ func (m MySQLDialect) ToSqlType(col *ColumnMap) string {
 	return fmt.Sprintf("varchar(%d)", maxsize)
 }
 
-// Returns auto_increment
-func (m MySQLDialect) AutoIncrStr() string {
+// AutoIncrStr returns "auto_increment".
+func (d MySQLDialect) AutoIncrStr() string {
 	return "auto_increment"
 }
 
-func (m MySQLDialect) AutoIncrBindValue() string {
+// AutoIncrBindValue returns "null", default for auto increment fields in MySQL.
+func (d MySQLDialect) AutoIncrBindValue() string {
 	return "null"
 }
 
-func (m MySQLDialect) AutoIncrInsertSuffix(col *ColumnMap) string {
+// AutoIncrInsertSuffix returns "".
+func (d MySQLDialect) AutoIncrInsertSuffix(col *ColumnMap) string {
 	return ""
 }
 
-// Returns engine=%s charset=%s  based on values stored on struct
-func (m MySQLDialect) CreateTableSuffix() string {
-	return fmt.Sprintf(" engine=%s charset=%s", m.Engine, m.Encoding)
+// CreateTableSuffix returns engine=%s charset=%s  based on values stored on struct
+func (d MySQLDialect) CreateTableSuffix() string {
+	return fmt.Sprintf(" engine=%s charset=%s", d.Engine, d.Encoding)
 }
 
-// Returns "?"
-func (m MySQLDialect) BindVar(i int) string {
+// BindVar returns "?"
+func (d MySQLDialect) BindVar(i int) string {
 	return "?"
 }
 
-func (m MySQLDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
+// InsertAutoIncr runs the standard Insert Exec, which uses LastInsertId to get
+// the value of the auto increment column.
+func (d MySQLDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
 	return standardInsertAutoIncr(exec, insertSql, params...)
 }
 
+// QuoteField quotes f using ``.
 func (d MySQLDialect) QuoteField(f string) string {
 	return "`" + f + "`"
 }
 
-// Formats the bindvars in the query string (these are '?') for the dialect.
+// FIXME: use sqlx's rebind, which was written after it had been created for modl
+
+// ReBind formats the bindvars in the query string (these are '?') for the dialect.
 func ReBind(query string, dialect Dialect) string {
 
 	binder := dialect.BindVar(0)
@@ -355,10 +381,13 @@ func ReBind(query string, dialect Dialect) string {
 	return query
 }
 
-func (m MySQLDialect) TruncateClause() string {
+// TruncateClause returns 'truncate'.
+func (d MySQLDialect) TruncateClause() string {
 	return "truncate"
 }
 
+// RestartIdentityClause alters the table's AUTO_INCREMENT value after truncation,
+// as MySQL doesn't have an identity clause for the truncate statement.
 func (d MySQLDialect) RestartIdentityClause(table string) string {
 	return "; alter table " + table + " AUTO_INCREMENT = 1"
 }

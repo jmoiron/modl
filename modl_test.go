@@ -18,16 +18,16 @@ import (
 var _ = log.Fatal
 
 type Invoice struct {
-	Id       int64
+	ID       int64
 	Created  int64 `db:"date_created"`
 	Updated  int64
 	Memo     string
-	PersonId int64
+	PersonID int64
 	IsPaid   bool
 }
 
 type Person struct {
-	Id      int64
+	ID      int64
 	Created int64
 	Updated int64
 	FName   string
@@ -36,15 +36,15 @@ type Person struct {
 }
 
 type InvoicePersonView struct {
-	InvoiceId     int64
-	PersonId      int64
+	InvoiceID     int64
+	PersonID      int64
 	Memo          string
 	FName         string
 	LegacyVersion int64
 }
 
 type TableWithNull struct {
-	Id      int64
+	ID      int64
 	Str     sql.NullString
 	Int64   sql.NullInt64
 	Float64 sql.NullFloat64
@@ -54,12 +54,12 @@ type TableWithNull struct {
 
 type WithIgnoredColumn struct {
 	internal int64 `db:"-"`
-	Id       int64
+	ID       int64
 	Created  int64
 }
 
 type WithStringPk struct {
-	Id   string
+	ID   string
 	Name string
 }
 
@@ -69,7 +69,7 @@ func (p *Person) PreInsert(s SqlExecutor) error {
 	p.Created = time.Now().UnixNano()
 	p.Updated = p.Created
 	if p.FName == "badname" {
-		return fmt.Errorf("Invalid name: %s", p.FName)
+		return fmt.Errorf("invalid name: %s", p.FName)
 	}
 	return nil
 }
@@ -106,7 +106,7 @@ func (p *Person) PostGet(s SqlExecutor) error {
 
 type PersistentUser struct {
 	Key            int32 `db:"mykey"`
-	Id             string
+	ID             string
 	PassedTraining bool
 }
 
@@ -198,7 +198,7 @@ func TestDontPanicOnInsert(t *testing.T) {
 	dbmap := initDbMap()
 	defer dbmap.DropTables()
 
-	err = dbmap.Insert(&TableWithNull{Id: 10})
+	err = dbmap.Insert(&TableWithNull{ID: 10})
 	if err == nil {
 		t.Errorf("Should have received an error for inserting without a known table.")
 	}
@@ -215,13 +215,13 @@ func TestOptimisticLocking(t *testing.T) {
 		t.Errorf("Insert didn't incr Version: %d != %d", 1, p1.Version)
 		return
 	}
-	if p1.Id == 0 {
+	if p1.ID == 0 {
 		t.Errorf("Insert didn't return a generated PK")
 		return
 	}
 
 	p2 := &Person{}
-	err = dbmap.Get(p2, p1.Id)
+	err = dbmap.Get(p2, p1.ID)
 	if err != nil {
 		panic(err)
 	}
@@ -257,7 +257,7 @@ func TestOptimisticLocking(t *testing.T) {
 // what happens if a legacy table has a null value?
 func TestDoubleAddTable(t *testing.T) {
 	dbmap := newDbMap()
-	t1 := dbmap.AddTable(TableWithNull{}).SetKeys(false, "Id")
+	t1 := dbmap.AddTable(TableWithNull{}).SetKeys(false, "ID")
 	t2 := dbmap.AddTable(TableWithNull{})
 	if t1 != t2 {
 		t.Errorf("%v != %v", t1, t2)
@@ -276,7 +276,7 @@ func TestNullValues(t *testing.T) {
 	}
 
 	// try to load it
-	expected := &TableWithNull{Id: 10}
+	expected := &TableWithNull{ID: 10}
 	t1 := &TableWithNull{}
 	MustGet(dbmap, t1, 10)
 	if !reflect.DeepEqual(expected, t1) {
@@ -308,11 +308,11 @@ func TestNullValues(t *testing.T) {
 func TestColumnProps(t *testing.T) {
 	dbmap := newDbMap()
 	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
-	t1 := dbmap.AddTable(Invoice{}).SetKeys(true, "Id")
+	t1 := dbmap.AddTable(Invoice{}).SetKeys(true, "ID")
 	//t1.ColMap("Created").Rename("date_created")
 	t1.ColMap("Updated").SetTransient(true)
 	t1.ColMap("Memo").SetMaxSize(10)
-	t1.ColMap("PersonId").SetUnique(true)
+	t1.ColMap("PersonID").SetUnique(true)
 
 	err := dbmap.CreateTables()
 	if err != nil {
@@ -324,7 +324,7 @@ func TestColumnProps(t *testing.T) {
 	inv := &Invoice{0, 0, 1, "my invoice", 0, true}
 	_insert(dbmap, inv)
 	inv2 := Invoice{}
-	MustGet(dbmap, &inv2, inv.Id)
+	MustGet(dbmap, &inv2, inv.ID)
 	if inv2.Updated != 0 {
 		t.Errorf("Saved transient column 'Updated'")
 	}
@@ -340,7 +340,7 @@ func TestColumnProps(t *testing.T) {
 	inv = &Invoice{0, 0, 1, "my invoice2", 0, false}
 	err = dbmap.Insert(inv)
 	if err == nil {
-		t.Errorf("same PersonId inserted, but Insert did not fail.")
+		t.Errorf("same PersonID inserted, but Insert did not fail.")
 	}
 }
 
@@ -351,10 +351,10 @@ func TestRawSelect(t *testing.T) {
 	p1 := &Person{0, 0, 0, "bob", "smith", 0}
 	_insert(dbmap, p1)
 
-	inv1 := &Invoice{0, 0, 0, "xmas order", p1.Id, true}
+	inv1 := &Invoice{0, 0, 0, "xmas order", p1.ID, true}
 	_insert(dbmap, inv1)
 
-	expected := &InvoicePersonView{inv1.Id, p1.Id, inv1.Memo, p1.FName, 0}
+	expected := &InvoicePersonView{inv1.ID, p1.ID, inv1.Memo, p1.FName, 0}
 
 	query := "select i.id invoiceid, p.id personid, i.memo, p.fname " +
 		"from invoice_test i, person_test p " +
@@ -380,7 +380,7 @@ func TestHooks(t *testing.T) {
 		t.Errorf("p1.PostInsert() didn't run: %v", p1)
 	}
 
-	MustGet(dbmap, p1, p1.Id)
+	MustGet(dbmap, p1, p1.ID)
 	if p1.LName != "postget" {
 		t.Errorf("p1.PostGet() didn't run: %v", p1)
 	}
@@ -394,7 +394,7 @@ func TestHooks(t *testing.T) {
 
 	var persons []*Person
 	bindVar := dbmap.Dialect.BindVar(0)
-	MustSelect(dbmap, &persons, "select * from person_test where id = "+bindVar, p1.Id)
+	MustSelect(dbmap, &persons, "select * from person_test where id = "+bindVar, p1.ID)
 	if persons[0].LName != "postget" {
 		t.Errorf("p1.PostGet() didn't run after select: %v", p1)
 	}
@@ -432,14 +432,14 @@ func TestTransaction(t *testing.T) {
 	}
 
 	obj := &Invoice{}
-	err = dbmap.Get(obj, inv1.Id)
+	err = dbmap.Get(obj, inv1.ID)
 	if err != nil {
 		panic(err)
 	}
 	if !reflect.DeepEqual(inv1, obj) {
 		t.Errorf("%v != %v", inv1, obj)
 	}
-	err = dbmap.Get(obj, inv2.Id)
+	err = dbmap.Get(obj, inv2.ID)
 	if err != nil {
 		panic(err)
 	}
@@ -474,14 +474,14 @@ func TestCrud(t *testing.T) {
 
 	// INSERT row
 	_insert(dbmap, inv)
-	if inv.Id == 0 {
-		t.Errorf("inv.Id was not set on INSERT")
+	if inv.ID == 0 {
+		t.Errorf("inv.ID was not set on INSERT")
 		return
 	}
 
 	// SELECT row
 	inv2 := &Invoice{}
-	MustGet(dbmap, inv2, inv.Id)
+	MustGet(dbmap, inv2, inv.ID)
 	if !reflect.DeepEqual(inv, inv2) {
 		t.Errorf("%v != %v", inv, inv2)
 	}
@@ -495,7 +495,7 @@ func TestCrud(t *testing.T) {
 		t.Errorf("update 1 != %d", count)
 	}
 
-	MustGet(dbmap, inv2, inv.Id)
+	MustGet(dbmap, inv2, inv.ID)
 	if !reflect.DeepEqual(inv, inv2) {
 		t.Errorf("%v != %v", inv, inv2)
 	}
@@ -503,14 +503,14 @@ func TestCrud(t *testing.T) {
 	// DELETE row
 	deleted := _del(dbmap, inv)
 	if deleted != 1 {
-		t.Errorf("Did not delete row with Id: %d", inv.Id)
+		t.Errorf("Did not delete row with ID: %d", inv.ID)
 		return
 	}
 
 	// VERIFY deleted
-	err := dbmap.Get(inv2, inv.Id)
+	err := dbmap.Get(inv2, inv.ID)
 	if err != sql.ErrNoRows {
-		t.Errorf("Found invoice with id: %d after Delete()", inv.Id)
+		t.Errorf("Found invoice with id: %d after Delete()", inv.ID)
 	}
 }
 
@@ -523,20 +523,20 @@ func TestWithIgnoredColumn(t *testing.T) {
 	expected := &WithIgnoredColumn{0, 1, 1}
 
 	ic2 := &WithIgnoredColumn{}
-	MustGet(dbmap, ic2, ic.Id)
+	MustGet(dbmap, ic2, ic.ID)
 
 	if !reflect.DeepEqual(expected, ic2) {
 		t.Errorf("%v != %v", expected, ic2)
 	}
 
 	if _del(dbmap, ic) != 1 {
-		t.Errorf("Did not delete row with Id: %d", ic.Id)
+		t.Errorf("Did not delete row with ID: %d", ic.ID)
 		return
 	}
 
-	err := dbmap.Get(ic2, ic.Id)
+	err := dbmap.Get(ic2, ic.ID)
 	if err != sql.ErrNoRows {
-		t.Errorf("Found id: %d after Delete() (%#v)", ic.Id, ic2)
+		t.Errorf("Found id: %d after Delete() (%#v)", ic.ID, ic2)
 	}
 }
 
@@ -562,8 +562,8 @@ func TestVersionMultipleRows(t *testing.T) {
 func TestWithStringPk(t *testing.T) {
 	dbmap := newDbMap()
 	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
-	dbmap.AddTableWithName(WithStringPk{}, "string_pk_test").SetKeys(true, "Id")
-	_, err := dbmap.Exec("create table string_pk_test (Id varchar(255), Name varchar(255));")
+	dbmap.AddTableWithName(WithStringPk{}, "string_pk_test").SetKeys(true, "ID")
+	_, err := dbmap.Exec("create table string_pk_test (ID varchar(255), Name varchar(255));")
 	if err != nil {
 		t.Errorf("couldn't create string_pk_test: %v", err)
 	}
@@ -600,7 +600,7 @@ func BenchmarkNativeCrud(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		if len(suffix) == 0 {
-			res, err := dbmap.Db.Exec(insert, inv.Created, inv.Updated, inv.Memo, inv.PersonId)
+			res, err := dbmap.Db.Exec(insert, inv.Created, inv.Updated, inv.Memo, inv.PersonID)
 			if err != nil {
 				panic(err)
 			}
@@ -609,15 +609,15 @@ func BenchmarkNativeCrud(b *testing.B) {
 			if err != nil {
 				panic(err)
 			}
-			inv.Id = newid
+			inv.ID = newid
 		} else {
-			rows, err := dbmap.Db.Query(insert, inv.Created, inv.Updated, inv.Memo, inv.PersonId)
+			rows, err := dbmap.Db.Query(insert, inv.Created, inv.Updated, inv.Memo, inv.PersonID)
 			if err != nil {
 				panic(err)
 			}
 
 			if rows.Next() {
-				err = rows.Scan(&inv.Id)
+				err = rows.Scan(&inv.ID)
 				if err != nil {
 					panic(err)
 				}
@@ -626,8 +626,8 @@ func BenchmarkNativeCrud(b *testing.B) {
 
 		}
 
-		row := dbmap.Db.QueryRow(sel, inv.Id)
-		err = row.Scan(&inv.Id, &inv.Created, &inv.Updated, &inv.Memo, &inv.PersonId)
+		row := dbmap.Db.QueryRow(sel, inv.ID)
+		err = row.Scan(&inv.ID, &inv.Created, &inv.Updated, &inv.Memo, &inv.PersonID)
 		if err != nil {
 			panic(err)
 		}
@@ -635,15 +635,15 @@ func BenchmarkNativeCrud(b *testing.B) {
 		inv.Created = 1000
 		inv.Updated = 2000
 		inv.Memo = "my memo 2"
-		inv.PersonId = 3000
+		inv.PersonID = 3000
 
 		_, err = dbmap.Db.Exec(update, inv.Created, inv.Updated, inv.Memo,
-			inv.PersonId, inv.Id)
+			inv.PersonID, inv.ID)
 		if err != nil {
 			panic(err)
 		}
 
-		_, err = dbmap.Db.Exec(delete, inv.Id)
+		_, err = dbmap.Db.Exec(delete, inv.ID)
 		if err != nil {
 			panic(err)
 		}
@@ -666,7 +666,7 @@ func BenchmarkModlCrud(b *testing.B) {
 		}
 
 		inv2 := Invoice{}
-		err = dbmap.Get(&inv2, inv.Id)
+		err = dbmap.Get(&inv2, inv.ID)
 		if err != nil {
 			panic(err)
 		}
@@ -674,7 +674,7 @@ func BenchmarkModlCrud(b *testing.B) {
 		inv2.Created = 1000
 		inv2.Updated = 2000
 		inv2.Memo = "my memo 2"
-		inv2.PersonId = 3000
+		inv2.PersonID = 3000
 		_, err = dbmap.Update(&inv2)
 		if err != nil {
 			panic(err)
@@ -705,7 +705,7 @@ func initDbMap() *DbMap {
 	dbmap.AddTableWithName(Invoice{}, "invoice_test").SetKeys(true, "id")
 	dbmap.AddTableWithName(Person{}, "person_test").SetKeys(true, "id")
 	dbmap.AddTableWithName(WithIgnoredColumn{}, "ignored_column_test").SetKeys(true, "id")
-	dbmap.AddTableWithName(WithTime{}, "time_test").SetKeys(true, "Id")
+	dbmap.AddTableWithName(WithTime{}, "time_test").SetKeys(true, "ID")
 	err := dbmap.CreateTables()
 	if err != nil {
 		panic(err)
@@ -779,8 +779,8 @@ func TestTruncateTablesIdentityRestart(t *testing.T) {
 
 	p2 := &Person{0, 0, 0, "Other", "Person", 0}
 	dbmap.Insert(p2)
-	if p2.Id != int64(1) {
-		t.Errorf("Expected new person Id to be equal to 1, was %d", p2.Id)
+	if p2.ID != int64(1) {
+		t.Errorf("Expected new person ID to be equal to 1, was %d", p2.ID)
 	}
 }
 
@@ -814,7 +814,7 @@ func TestQuoteTableNames(t *testing.T) {
 }
 
 type WithTime struct {
-	Id   int64
+	ID   int64
 	Time time.Time
 }
 
@@ -837,7 +837,7 @@ func TestWithTime(t *testing.T) {
 	dbmap.Insert(&w1)
 
 	w2 := WithTime{}
-	dbmap.Get(&w2, w1.Id)
+	dbmap.Get(&w2, w1.ID)
 
 	if w1.Time.UnixNano() != w2.Time.UnixNano() {
 		t.Errorf("%v != %v", w1, w2)

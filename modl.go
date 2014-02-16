@@ -1,3 +1,5 @@
+package modl
+
 // Changes Copyright 2013 Jason Moiron.  Original Gorp code
 // Copyright 2012 James Cooper. All rights reserved.
 //
@@ -6,20 +8,22 @@
 //
 // Source code and project home:
 // https://github.com/jmoiron/modl
-//
-package modl
 
 import (
 	"database/sql"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"reflect"
+
+	"github.com/jmoiron/sqlx"
 )
 
+// NoKeysErr is a special error type returned when modl's CRUD helpers are
+// used on tables which have not been set up with a primary key.
 type NoKeysErr struct {
 	Table *TableMap
 }
 
+// Error returns the string representation of a NoKeysError.
 func (n NoKeysErr) Error() string {
 	return fmt.Sprintf("Could not find keys for table %v", n.Table)
 }
@@ -137,44 +141,44 @@ type Transaction struct {
 	tx    *sqlx.Tx
 }
 
-// Same behavior as DbMap.Insert(), but runs in a transaction
+// Insert has the same behavior as DbMap.Insert(), but runs in a transaction.
 func (t *Transaction) Insert(list ...interface{}) error {
 	return insert(t.dbmap, t, list...)
 }
 
-// Same behavior as DbMap.Update(), but runs in a transaction
+// Update has the same behavior as DbMap.Update(), but runs in a transaction.
 func (t *Transaction) Update(list ...interface{}) (int64, error) {
 	return update(t.dbmap, t, list...)
 }
 
-// Same behavior as DbMap.Delete(), but runs in a transaction
+// Delete has the same behavior as DbMap.Delete(), but runs in a transaction.
 func (t *Transaction) Delete(list ...interface{}) (int64, error) {
 	return delete(t.dbmap, t, list...)
 }
 
-// Same behavior as DbMap.Get(), but runs in a transaction
+// Get has the Same behavior as DbMap.Get(), but runs in a transaction.
 func (t *Transaction) Get(dest interface{}, keys ...interface{}) error {
 	return get(t.dbmap, t, dest, keys...)
 }
 
-// Same behavior as DbMap.Select(), but runs in a transaction
+// Select has the Same behavior as DbMap.Select(), but runs in a transaction.
 func (t *Transaction) Select(dest interface{}, query string, args ...interface{}) error {
 	return hookedselect(t.dbmap, t, dest, query, args...)
 }
 
-// Same behavior as DbMap.Exec(), but runs in a transaction
+// Exec has the same behavior as DbMap.Exec(), but runs in a transaction.
 func (t *Transaction) Exec(query string, args ...interface{}) (sql.Result, error) {
 	t.dbmap.trace(query, args)
 	return t.tx.Exec(query, args...)
 }
 
-// Commits the underlying database transaction
+// Commit commits the underlying database transaction.
 func (t *Transaction) Commit() error {
 	t.dbmap.trace("commit;")
 	return t.tx.Commit()
 }
 
-// Rolls back the underlying database transaction
+// Rollback rolls back the underlying database transaction.
 func (t *Transaction) Rollback() error {
 	t.dbmap.trace("rollback;")
 	return t.tx.Rollback()
@@ -246,7 +250,7 @@ func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) erro
 	table := m.TableFor(dest)
 
 	if table == nil {
-		return fmt.Errorf("Could not find table for %v", dest)
+		return fmt.Errorf("could not find table for %v", dest)
 	}
 	if len(table.Keys) < 1 {
 		return &NoKeysErr{table}

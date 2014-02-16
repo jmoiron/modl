@@ -3,8 +3,9 @@ package modl
 import (
 	"bytes"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"reflect"
+
+	"github.com/jmoiron/sqlx"
 )
 
 // TableMap represents a mapping between a Go struct and a database table
@@ -326,16 +327,17 @@ func (c *ColumnMap) SetTransient(b bool) *ColumnMap {
 	return c
 }
 
-// If true " unique" will be added to create table statements for this
-// column
+// SetUnique sets the unqiue clause for this column.  If true, a unique clause
+// will be added to create table statements for this column.
 func (c *ColumnMap) SetUnique(b bool) *ColumnMap {
 	c.Unique = b
 	return c
 }
 
-// Set the column's sql type.  This is a string, such as 'varchar(32)' or
-// 'text', which will be used by CreateTable and nothing else.  It is the
-// caller's responsibility to ensure this will map cleanly to the struct
+// SetSqlType sets an override for the column's sql type.  This is a string,
+// such as 'varchar(32)' or 'text', which will be used by CreateTable and
+// nothing else.  It is the caller's responsibility to ensure this will map
+// cleanly to the underlying struct field via rows.Scan
 func (c *ColumnMap) SetSqlType(t string) *ColumnMap {
 	c.sqltype = t
 	return c
@@ -354,12 +356,12 @@ func (c *ColumnMap) SetMaxSize(size int) *ColumnMap {
 func tableForPointer(m *DbMap, i interface{}, checkPk bool) (*TableMap, reflect.Value, error) {
 	v := reflect.ValueOf(i)
 	if v.Kind() != reflect.Ptr {
-		return nil, v, fmt.Errorf("Value %v not a pointer", v)
+		return nil, v, fmt.Errorf("value %v not a pointer", v)
 	}
 	v = v.Elem()
 	t := m.TableForType(v.Type())
 	if t == nil {
-		return nil, v, fmt.Errorf("Could not find table for %v", t)
+		return nil, v, fmt.Errorf("could not find table for %v", t)
 	}
 	if checkPk && len(t.Keys) < 1 {
 		return t, v, &NoKeysErr{t}

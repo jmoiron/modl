@@ -1,5 +1,12 @@
-// Use of this source code is governed by a MIT-style
-// license that can be found in the LICENSE file.
+// Package modl provides a non-declarative database modelling layer to ease
+// the use of frequently repeated patterns in database-backed applications
+// and centralize database use to ease profiling and reporting.
+//
+// It is a fork of the wonderful github.com/coopernurse/gorp package, but is
+// rewritten to use github.com/jmoiron/sqlx as a base.
+//
+// Use of this source code is governed by a MIT-style license that can be
+// found in the LICENSE file.
 //
 package modl
 
@@ -35,7 +42,7 @@ type DbMap struct {
 	logPrefix string
 }
 
-// Return a new DbMap using the db connection and dialect
+// NewDbMap returns a new DbMap using the db connection and dialect
 func NewDbMap(db *sql.DB, dialect Dialect) *DbMap {
 	return &DbMap{Db: db, Dialect: dialect, Dbx: sqlx.NewDb(db, dialect.DriverName())}
 }
@@ -74,6 +81,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 	}
 
 	t := reflect.TypeOf(i)
+	// Use sqlx's NameMapper function if no name is supplied
 	if len(Name) == 0 {
 		Name = sqlx.NameMapper(t.Name())
 	}
@@ -117,6 +125,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 
 }
 
+// AddTableWithName adds a new mapping of the interface to a table name.
 func (m *DbMap) AddTableWithName(i interface{}, name string) *TableMap {
 	return m.AddTable(i, name)
 }
@@ -340,7 +349,11 @@ func (m *DbMap) Begin() (*Transaction, error) {
 	return &Transaction{m, tx}, nil
 }
 
-// Returns any matching tables for the interface i or nil if not found
+// FIXME: This is a poor interface.  Checking for nils is un-go-like, and this
+// function should be TableFor(i interface{}) (*TableMap, error)
+// FIXME: rewrite this in terms of sqlx's reflect helpers
+
+// TableFor returns any matching tables for the interface i or nil if not found
 // If i is a slice, then the table is given for the base slice type
 func (m *DbMap) TableFor(i interface{}) *TableMap {
 	var t reflect.Type
@@ -361,7 +374,9 @@ start:
 	return m.TableForType(t)
 }
 
-// Returns any matching tables for the type t or nil if not found
+// FIXME: returning a nil pointer is not go-like;  return (*TableMap, err) instead.
+
+// TableForType returns any matching tables for the type t or nil if not found
 func (m *DbMap) TableForType(t reflect.Type) *TableMap {
 	for _, table := range m.tables {
 		if table.gotype == t {
@@ -371,12 +386,13 @@ func (m *DbMap) TableForType(t reflect.Type) *TableMap {
 	return nil
 }
 
-// Truncate all tables in the DbMap
+// TruncateTables truncates all tables in the DbMap
 func (m *DbMap) TruncateTables() error {
 	return m.truncateTables(false)
 }
 
-// Truncate all tables in the DbMap and reset identity counter
+// TruncateTablesIdentityRestart truncates all tables in the DbMap and
+// resets the identity counter.
 func (m *DbMap) TruncateTablesIdentityRestart() error {
 	return m.truncateTables(true)
 }
@@ -390,8 +406,12 @@ func (m *DbMap) truncateTables(restartIdentity bool) error {
 			restartClause = m.Dialect.RestartIdentityClause(table.TableName)
 		}
 
+		// if the restart clause exists and starts with ';', then assume it's an
+		// additional query to run after we truncate.  This is true with MySQL and
+		// SQLite, which do not have extra clauses for this during table truncation.
 		if len(restartClause) > 0 && restartClause[0] == ';' {
-			_, err = m.Exec(fmt.Sprintf("%s %s;", m.Dialect.TruncateClause(), m.Dialect.QuoteField(table.TableName)))
+			_, err = m.Exec(fmt.Sprintf("%s %s;", m.Dialect.TruncateClause(),
+				m.Dialect.QuoteField(table.TableName)))
 			if err != nil {
 				return err
 			}
