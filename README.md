@@ -76,7 +76,7 @@ The original README.md follows:
 ## Supported Databases
 
 Modl relies heavily upon the `database/sql` package, and has a 
-[Dialect](blob/master/dialect.go) interface which can be used to smooth over
+[Dialect](dialect.go) interface which can be used to smooth over
 differences between databases.  There is a [list of sql drivers](http://code.google.com/p/go-wiki/wiki/SQLDrivers)
 on the Go wiki, most of which Modl should be compatible with.  Dialects
 are provided for:
