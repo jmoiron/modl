@@ -17,12 +17,13 @@ import (
 	"log"
 	"reflect"
 	"strings"
+
 	"github.com/jmoiron/sqlx"
 )
 
 // TableNameMapper is the function used by AddTable to map struct names to database table names, in analogy
 // to sqlx.NameMapper which does the same for struct field name to database column names.
-var TableNameMapper  = strings.ToLower
+var TableNameMapper = strings.ToLower
 
 // DbMap is the root modl mapping object. Create one of these for each
 // database schema you wish to map.  Each DbMap contains a list of
@@ -374,6 +375,9 @@ start:
 		t = v.Type().Elem()
 	default:
 		t = v.Type()
+	}
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
 	}
 	return m.TableForType(t)
 }
