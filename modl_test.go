@@ -385,6 +385,7 @@ func TestHooks(t *testing.T) {
 		t.Errorf("p1.PostGet() didn't run: %v", p1)
 	}
 
+	p1.LName = "smith"
 	_update(dbmap, p1)
 	if p1.FName != "preupdate" {
 		t.Errorf("p1.PreUpdate() didn't run: %v", p1)
