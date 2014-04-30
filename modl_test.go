@@ -65,6 +65,16 @@ type WithStringPk struct {
 
 type CustomStringType string
 
+type WithEmbeddedStruct struct {
+	Id int64
+	Names
+}
+
+type Names struct {
+	FirstName string
+	LastName  string
+}
+
 func (p *Person) PreInsert(s SqlExecutor) error {
 	p.Created = time.Now().UnixNano()
 	p.Updated = p.Created
@@ -595,6 +605,29 @@ func TestWithStringPk(t *testing.T) {
 	err = dbmap.Insert(row)
 	if err == nil {
 		t.Errorf("Expected error when inserting into table w/non Int PK and autoincr set true")
+	}
+}
+
+func TestWithEmbeddedStruct(t *testing.T) {
+	dbmap := newDbMap()
+	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
+	dbmap.AddTableWithName(WithEmbeddedStruct{}, "embedded_struct_test").SetKeys(true, "ID")
+	err := dbmap.CreateTables()
+	if err != nil {
+		t.Errorf("couldn't create embedded_struct_test: %v", err)
+	}
+	defer dbmap.DropTables()
+
+	row := &WithEmbeddedStruct{Names: Names{"Alice", "Smith"}}
+	err = dbmap.Insert(row)
+	if err != nil {
+		t.Errorf("Error inserting into table w/embedded struct: %v", err)
+	}
+
+	var es WithEmbeddedStruct
+	err = dbmap.Get(&es, row.Id)
+	if err != nil {
+		t.Errorf("Error selecting from table w/embedded struct: %v", err)
 	}
 }
 
