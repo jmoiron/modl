@@ -52,8 +52,8 @@ Since modl is a gorp fork, here are some of its major behavioral differences:
 To use the `test-all` script, set the following environment variables:
 
 ```sh
-# mysql DSN, like:
-MODL_MYSQL_DSN="username:password@/dbname"
+# mysql DSN, note parseTime arg for time scanning support:
+MODL_MYSQL_DSN="username:password@/dbname?parseTime=true"
 
 # postgres DSN, like:
 MODL_POSTGRES_DSN="username=username password=pw dbname=dbname ssl-node=disable"
