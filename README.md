@@ -56,7 +56,7 @@ To use the `test-all` script, set the following environment variables:
 MODL_MYSQL_DSN="username:password@/dbname?parseTime=true"
 
 # postgres DSN, like:
-MODL_POSTGRES_DSN="username=username password=pw dbname=dbname ssl-node=disable"
+MODL_POSTGRES_DSN="username=username password=pw dbname=dbname sslmode=disable"
 
 # sqlite DSN, which is a path
 MODL_SQLITE_DSN="/dev/shm/modltest.db"
