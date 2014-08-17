@@ -112,7 +112,7 @@ type PersistentUser struct {
 
 func TestCreateTablesIfNotExists(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	err := dbmap.CreateTablesIfNotExists()
 	if err != nil {
@@ -131,7 +131,7 @@ func TestPersistentUser(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 	pu := &PersistentUser{43, "33r", false}
 	err = dbmap.Insert(pu)
 	if err != nil {
@@ -174,13 +174,14 @@ func TestPersistentUser(t *testing.T) {
 func TestOverrideVersionCol(t *testing.T) {
 	dbmap := initDbMap()
 	dbmap.DropTables()
+
 	t1 := dbmap.AddTable(InvoicePersonView{}).SetKeys(false, "invoiceid", "personid")
 	err := dbmap.CreateTables()
 
 	if err != nil {
 		panic(err)
 	}
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 	c1 := t1.SetVersionCol("legacyversion")
 	if c1.ColumnName != "legacyversion" {
 		t.Errorf("Wrong col returned: %v", c1)
@@ -196,7 +197,7 @@ func TestOverrideVersionCol(t *testing.T) {
 func TestDontPanicOnInsert(t *testing.T) {
 	var err error
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	err = dbmap.Insert(&TableWithNull{ID: 10})
 	if err == nil {
@@ -207,7 +208,7 @@ func TestDontPanicOnInsert(t *testing.T) {
 func TestOptimisticLocking(t *testing.T) {
 	var err error
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	p1 := &Person{0, 0, 0, "Bob", "Smith", 0}
 	dbmap.Insert(p1) // Version is now 1
@@ -267,7 +268,7 @@ func TestDoubleAddTable(t *testing.T) {
 // what happens if a legacy table has a null value?
 func TestNullValues(t *testing.T) {
 	dbmap := initDbMapNulls()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	// insert a row directly
 	_, err := dbmap.Exec(`insert into tablewithnull values (10, null, null, null, null, null)`)
@@ -318,7 +319,7 @@ func TestColumnProps(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	// test transient
 	inv := &Invoice{0, 0, 1, "my invoice", 0, true}
@@ -346,7 +347,7 @@ func TestColumnProps(t *testing.T) {
 
 func TestRawSelect(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	p1 := &Person{0, 0, 0, "bob", "smith", 0}
 	_insert(dbmap, p1)
@@ -370,7 +371,7 @@ func TestRawSelect(t *testing.T) {
 
 func TestHooks(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	p1 := &Person{0, 0, 0, "bob", "smith", 0}
 	_insert(dbmap, p1)
@@ -417,7 +418,7 @@ func TestHooks(t *testing.T) {
 
 func TestTransaction(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	inv1 := &Invoice{0, 100, 200, "t1", 0, true}
 	inv2 := &Invoice{0, 100, 200, "t2", 0, false}
@@ -451,7 +452,7 @@ func TestTransaction(t *testing.T) {
 
 func TestMultiple(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	inv1 := &Invoice{0, 100, 200, "a", 0, false}
 	inv2 := &Invoice{0, 100, 200, "b", 0, true}
@@ -469,7 +470,7 @@ func TestMultiple(t *testing.T) {
 
 func TestCrud(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	inv := &Invoice{0, 100, 200, "first order", 0, true}
 
@@ -517,7 +518,7 @@ func TestCrud(t *testing.T) {
 
 func TestWithIgnoredColumn(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	ic := &WithIgnoredColumn{-1, 0, 1}
 	_insert(dbmap, ic)
@@ -543,7 +544,7 @@ func TestWithIgnoredColumn(t *testing.T) {
 
 func TestVersionMultipleRows(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	persons := []*Person{
 		&Person{0, 0, 0, "Bob", "Smith", 0},
@@ -568,7 +569,7 @@ func TestWithStringPk(t *testing.T) {
 	if err != nil {
 		t.Errorf("couldn't create string_pk_test: %v", err)
 	}
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	row := &WithStringPk{"1", "foo"}
 	err = dbmap.Insert(row)
@@ -582,7 +583,7 @@ func BenchmarkNativeCrud(b *testing.B) {
 
 	b.StopTimer()
 	dbmap := initDbMapBench()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 	b.StartTimer()
 
 	insert := "insert into invoice_test (date_created, updated, memo, personid) values (?, ?, ?, ?)"
@@ -655,7 +656,7 @@ func BenchmarkNativeCrud(b *testing.B) {
 func BenchmarkModlCrud(b *testing.B) {
 	b.StopTimer()
 	dbmap := initDbMapBench()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
 	b.StartTimer()
 
@@ -700,6 +701,17 @@ func initDbMapBench() *DbMap {
 	return dbmap
 }
 
+func (d *DbMap) Cleanup() {
+	err := d.DropTables()
+	if err != nil {
+		panic(err)
+	}
+	err = d.Dbx.Close()
+	if err != nil {
+		panic(err)
+	}
+}
+
 func initDbMap() *DbMap {
 	dbmap := newDbMap()
 	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
@@ -717,7 +729,7 @@ func initDbMap() *DbMap {
 
 func TestTruncateTables(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 	err := dbmap.CreateTablesIfNotExists()
 	if err != nil {
 		t.Error(err)
@@ -749,7 +761,7 @@ func TestTruncateTables(t *testing.T) {
 
 func TestTruncateTablesIdentityRestart(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 	err := dbmap.CreateTablesIfNotExists()
 	if err != nil {
 		t.Error(err)
@@ -785,15 +797,56 @@ func TestTruncateTablesIdentityRestart(t *testing.T) {
 	}
 }
 
+func TestSelectBehavior(t *testing.T) {
+	db := initDbMap()
+	defer db.Cleanup()
+
+	p := Person{}
+
+	// check that SelectOne with no rows returns ErrNoRows
+	err := db.SelectOne(&p, "select * from person_test")
+	if err == nil || err != sql.ErrNoRows {
+		t.Fatal(err)
+	}
+
+	// insert and ensure SelectOne works properly
+	bob := Person{0, 0, 0, "Bob", "Smith", 0}
+	db.Insert(&bob)
+
+	err = db.SelectOne(&p, "select * from person_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.FName != "Bob" {
+		t.Errorf("Wrong FName: %s", p.FName)
+	}
+	// there's a post hook on this that sets it to postget, ensure it ran
+	if p.LName != "postget" {
+		t.Errorf("Wrong LName: %s", p.LName)
+	}
+
+	// insert again and ensure SelectOne *does not* error in rows > 1
+	ben := Person{0, 0, 0, "Ben", "Smith", 0}
+	db.Insert(&ben)
+
+	err = db.SelectOne(&p, "select * from person_test ORDER BY fname ASC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.FName != "Ben" {
+		t.Errorf("Wrong FName: %s", p.FName)
+	}
+}
+
 func TestQuoteTableNames(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	quotedTableName := dbmap.Dialect.QuoteField("person_test")
 
 	// Use a buffer to hold the log to check generated queries
-	logBuffer := &bytes.Buffer{}
-	dbmap.TraceOn("", log.New(logBuffer, "modltest:", log.Lmicroseconds))
+	var logBuffer bytes.Buffer
+	dbmap.TraceOn("", log.New(&logBuffer, "modltest:", log.Lmicroseconds))
 
 	// Create some rows
 	p1 := &Person{0, 0, 0, "bob", "smith", 0}
@@ -802,6 +855,7 @@ func TestQuoteTableNames(t *testing.T) {
 	// Check if Insert quotes the table name
 	id := dbmap.Insert(p1)
 	if !bytes.Contains(logBuffer.Bytes(), []byte(quotedTableName)) {
+		t.Log("log:", logBuffer.String())
 		t.Errorf(errorTemplate, quotedTableName)
 	}
 	logBuffer.Reset()
@@ -821,7 +875,7 @@ type WithTime struct {
 
 func TestWithTime(t *testing.T) {
 	dbmap := initDbMap()
-	defer dbmap.DropTables()
+	defer dbmap.Cleanup()
 
 	// FIXME: there seems to be a bug with go-sql-driver and timezones?
 	// MySQL doesn't have any timestamp support, but since it is not

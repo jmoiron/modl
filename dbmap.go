@@ -310,7 +310,7 @@ func (m *DbMap) Get(dest interface{}, keys ...interface{}) error {
 }
 
 // Select runs an arbitrary SQL query, binding the columns in the result
-// to fields on the struct specified by i.  args represent the bind
+// to fields on the struct specified by dest.  args represent the bind
 // parameters for the SQL statement.
 //
 // Column names on the SELECT statement should be aliased to the field names
@@ -328,8 +328,14 @@ func (m *DbMap) Get(dest interface{}, keys ...interface{}) error {
 //    and nil returned.
 //
 // i does NOT need to be registered with AddTable()
-func (m *DbMap) Select(i interface{}, query string, args ...interface{}) error {
-	return hookedselect(m, m, i, query, args...)
+func (m *DbMap) Select(dest interface{}, query string, args ...interface{}) error {
+	return hookedselect(m, m, dest, query, args...)
+}
+
+// SelectOne runs an arbitrary SQL Query, binding the columns in the result to
+// fields on the struct specified by dest.
+func (m *DbMap) SelectOne(dest interface{}, query string, args ...interface{}) error {
+	return hookedget(m, m, dest, query, args...)
 }
 
 // Exec runs an arbitrary SQL statement.  args represent the bind parameters.
@@ -437,19 +443,8 @@ func (m *DbMap) truncateTables(restartIdentity bool) error {
 	return nil
 }
 
-func (m *DbMap) queryRow(query string, args ...interface{}) *sql.Row {
-	m.trace(query, args)
-	return m.Db.QueryRow(query, args...)
-}
-
-func (m *DbMap) queryRowx(query string, args ...interface{}) *sqlx.Row {
-	m.trace(query, args)
-	return m.Dbx.QueryRowx(query, args...)
-}
-
-func (m *DbMap) query(query string, args ...interface{}) (*sql.Rows, error) {
-	m.trace(query, args)
-	return m.Db.Query(query, args...)
+func (m *DbMap) handle() handle {
+	return &tracingHandle{h: m.Dbx, d: m}
 }
 
 func (m *DbMap) trace(query string, args ...interface{}) {
