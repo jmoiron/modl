@@ -5,11 +5,9 @@
 Modl is a library which provides database modelling and mapping.   It is heavily based
 on the work in James Cooper's wonderful [gorp](http://github.com/coopernurse/gorp).
 
-**Note**: Modl is under heavy development.  Its public facing interface is still
-under some considerable development as I narrow in on how I want the library to
-function and how I want using it to feel.  Despite that, modl inherits gorp's
-fairly comprehensive test suite, so whatever code is actually in the master
-branch is likely to be buildable and to function.
+**Note**.  Modl's public facing interface is considered unfinished and open to
+change.  The current API will not be broken lightly, but additions are likely.
+As Gorp's behavior moves on, Modl may adopt some of it or may not.
 
 ## Goals
 
