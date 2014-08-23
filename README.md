@@ -1,9 +1,10 @@
 # Modl: Go database model & mapping
 
 [![Build Status](https://drone.io/github.com/jmoiron/modl/status.png)](https://drone.io/github.com/jmoiron/modl/latest)
+[![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/jmoiron/modl)
 
-Modl is a library which provides database modelling and mapping.   It is heavily based
-on the work in James Cooper's wonderful [gorp](http://github.com/coopernurse/gorp).
+Modl is a library which provides database modelling and mapping.   It is a fork of
+James Cooper's wonderful [gorp](http://github.com/coopernurse/gorp).
 
 **Note**.  Modl's public facing interface is considered unfinished and open to
 change.  The current API will not be broken lightly, but additions are likely.
@@ -70,6 +71,11 @@ you want to run the benchmarks, as described below.
 
 The original README.md follows:
 
+## API Stability
+
+The API of Modl has been quite stable since its conception.  Changes to the API
+are avoided as much as possible but there is currently no promise of forward or
+backward compatibility.
 
 ## Supported Databases
 
@@ -87,8 +93,7 @@ The test suite is continuously run against all of these databases.
 
 ## Documentation
 
-TODO.  API Documentation will go onto [godoc](http://godoc.org) when the API
-has stabilized.
+API Documentation is available on [godoc](http://godoc.org).
 
 ## Performance ##
 

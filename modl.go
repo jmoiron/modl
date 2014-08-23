@@ -13,8 +13,6 @@ import (
 	"database/sql"
 	"fmt"
 	"reflect"
-
-	"github.com/jmoiron/sqlx"
 )
 
 // NoKeysErr is a special error type returned when modl's CRUD helpers are
@@ -121,9 +119,8 @@ type SqlExecutor interface {
 	Delete(list ...interface{}) (int64, error)
 	Exec(query string, args ...interface{}) (sql.Result, error)
 	Select(dest interface{}, query string, args ...interface{}) error
-	query(query string, args ...interface{}) (*sql.Rows, error)
-	queryRow(query string, args ...interface{}) *sql.Row
-	queryRowx(query string, args ...interface{}) *sqlx.Row
+	SelectOne(dest interface{}, query string, args ...interface{}) error
+	handle() handle
 }
 
 // Compile-time check that DbMap and Transaction implement the SqlExecutor
@@ -132,84 +129,32 @@ var _, _ SqlExecutor = &DbMap{}, &Transaction{}
 
 ///////////////
 
-// Transaction represents a database transaction.
-// Insert/Update/Delete/Get/Exec operations will be run in the context
-// of that transaction.  Transactions should be terminated with
-// a call to Commit() or Rollback()
-type Transaction struct {
-	dbmap *DbMap
-	tx    *sqlx.Tx
-}
-
-// Insert has the same behavior as DbMap.Insert(), but runs in a transaction.
-func (t *Transaction) Insert(list ...interface{}) error {
-	return insert(t.dbmap, t, list...)
-}
-
-// Update has the same behavior as DbMap.Update(), but runs in a transaction.
-func (t *Transaction) Update(list ...interface{}) (int64, error) {
-	return update(t.dbmap, t, list...)
-}
-
-// Delete has the same behavior as DbMap.Delete(), but runs in a transaction.
-func (t *Transaction) Delete(list ...interface{}) (int64, error) {
-	return delete(t.dbmap, t, list...)
-}
-
-// Get has the Same behavior as DbMap.Get(), but runs in a transaction.
-func (t *Transaction) Get(dest interface{}, keys ...interface{}) error {
-	return get(t.dbmap, t, dest, keys...)
-}
-
-// Select has the Same behavior as DbMap.Select(), but runs in a transaction.
-func (t *Transaction) Select(dest interface{}, query string, args ...interface{}) error {
-	return hookedselect(t.dbmap, t, dest, query, args...)
-}
-
-// Exec has the same behavior as DbMap.Exec(), but runs in a transaction.
-func (t *Transaction) Exec(query string, args ...interface{}) (sql.Result, error) {
-	t.dbmap.trace(query, args)
-	return t.tx.Exec(query, args...)
-}
-
-// Commit commits the underlying database transaction.
-func (t *Transaction) Commit() error {
-	t.dbmap.trace("commit;")
-	return t.tx.Commit()
-}
-
-// Rollback rolls back the underlying database transaction.
-func (t *Transaction) Rollback() error {
-	t.dbmap.trace("rollback;")
-	return t.tx.Rollback()
-}
-
-func (t *Transaction) queryRow(query string, args ...interface{}) *sql.Row {
-	t.dbmap.trace(query, args)
-	return t.tx.QueryRow(query, args...)
-}
-
-func (t *Transaction) queryRowx(query string, args ...interface{}) *sqlx.Row {
-	t.dbmap.trace(query, args)
-	return t.tx.QueryRowx(query, args...)
-}
-
-func (t *Transaction) query(query string, args ...interface{}) (*sql.Rows, error) {
-	t.dbmap.trace(query, args)
-	return t.tx.Query(query, args...)
-}
-
-///////////////
-
-func hookedselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args ...interface{}) error {
-
-	// select can use arbitrary structs for join queries, so we needn't find a table
-	table := m.TableFor(dest)
-
-	err := rawselect(m, exec, dest, query, args...)
+func hookedget(m *DbMap, e SqlExecutor, dest interface{}, query string, args ...interface{}) error {
+	err := e.handle().Get(dest, query, args...)
 	if err != nil {
 		return err
 	}
+
+	table := m.TableFor(dest)
+
+	if table != nil && table.CanPostGet {
+		err = dest.(PostGetter).PostGet(e)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func hookedselect(m *DbMap, e SqlExecutor, dest interface{}, query string, args ...interface{}) error {
+
+	err := e.handle().Select(dest, query, args...)
+	if err != nil {
+		return err
+	}
+
+	// select can use arbitrary structs for join queries, so we needn't find a table
+	table := m.TableFor(dest)
 
 	if table != nil && table.CanPostGet {
 		var x interface{}
@@ -220,7 +165,7 @@ func hookedselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, ar
 		l := v.Len()
 		for i := 0; i < l; i++ {
 			x = v.Index(i).Interface()
-			err = x.(PostGetter).PostGet(exec)
+			err = x.(PostGetter).PostGet(e)
 			if err != nil {
 				return err
 			}
@@ -230,22 +175,7 @@ func hookedselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, ar
 	return nil
 }
 
-func rawselect(m *DbMap, exec SqlExecutor, dest interface{}, query string, args ...interface{}) error {
-	// FIXME: we need to verify dest is a pointer-to-slice
-
-	// Run the query
-	sqlrows, err := exec.query(query, args...)
-	if err != nil {
-		return err
-	}
-
-	defer sqlrows.Close()
-	err = sqlx.StructScan(sqlrows, dest)
-	return err
-
-}
-
-func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) error {
+func get(m *DbMap, e SqlExecutor, dest interface{}, keys ...interface{}) error {
 
 	table := m.TableFor(dest)
 
@@ -257,15 +187,14 @@ func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) erro
 	}
 
 	plan := table.bindGet()
-	row := exec.queryRowx(plan.query, keys...)
-	err := row.StructScan(dest)
+	err := e.handle().Get(dest, plan.query, keys...)
 
 	if err != nil {
 		return err
 	}
 
 	if table.CanPostGet {
-		err = dest.(PostGetter).PostGet(exec)
+		err = dest.(PostGetter).PostGet(e)
 		if err != nil {
 			return err
 		}
@@ -274,7 +203,7 @@ func get(m *DbMap, exec SqlExecutor, dest interface{}, keys ...interface{}) erro
 	return nil
 }
 
-func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
+func delete(m *DbMap, e SqlExecutor, list ...interface{}) (int64, error) {
 	var err error
 	var table *TableMap
 	var elem reflect.Value
@@ -287,7 +216,7 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 		}
 
 		if table.CanPreDelete {
-			err = ptr.(PreDeleter).PreDelete(exec)
+			err = ptr.(PreDeleter).PreDelete(e)
 			if err != nil {
 				return -1, err
 			}
@@ -295,7 +224,7 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 
 		bi := table.bindDelete(elem)
 
-		res, err := exec.Exec(bi.query, bi.args...)
+		res, err := e.Exec(bi.query, bi.args...)
 		if err != nil {
 			return -1, err
 		}
@@ -306,13 +235,13 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 		}
 
 		if rows == 0 && bi.existingVersion > 0 {
-			return lockError(m, exec, table.TableName, bi.existingVersion, elem, bi.keys...)
+			return lockError(m, e, table.TableName, bi.existingVersion, elem, bi.keys...)
 		}
 
 		count += rows
 
 		if table.CanPostDelete {
-			err = ptr.(PostDeleter).PostDelete(exec)
+			err = ptr.(PostDeleter).PostDelete(e)
 			if err != nil {
 				return -1, err
 			}
@@ -322,7 +251,7 @@ func delete(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 	return count, nil
 }
 
-func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
+func update(m *DbMap, e SqlExecutor, list ...interface{}) (int64, error) {
 	var err error
 	var table *TableMap
 	var elem reflect.Value
@@ -335,7 +264,7 @@ func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 		}
 
 		if table.CanPreUpdate {
-			err = ptr.(PreUpdater).PreUpdate(exec)
+			err = ptr.(PreUpdater).PreUpdate(e)
 			if err != nil {
 				return -1, err
 			}
@@ -346,7 +275,7 @@ func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 			return -1, err
 		}
 
-		res, err := exec.Exec(bi.query, bi.args...)
+		res, err := e.Exec(bi.query, bi.args...)
 		if err != nil {
 			return -1, err
 		}
@@ -357,7 +286,7 @@ func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 		}
 
 		if rows == 0 && bi.existingVersion > 0 {
-			return lockError(m, exec, table.TableName,
+			return lockError(m, e, table.TableName,
 				bi.existingVersion, elem, bi.keys...)
 		}
 
@@ -368,7 +297,7 @@ func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 		count += rows
 
 		if table.CanPostUpdate {
-			err = ptr.(PostUpdater).PostUpdate(exec)
+			err = ptr.(PostUpdater).PostUpdate(e)
 
 			if err != nil {
 				return -1, err
@@ -378,7 +307,7 @@ func update(m *DbMap, exec SqlExecutor, list ...interface{}) (int64, error) {
 	return count, nil
 }
 
-func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
+func insert(m *DbMap, e SqlExecutor, list ...interface{}) error {
 	var err error
 	var table *TableMap
 	var elem reflect.Value
@@ -390,7 +319,7 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 		}
 
 		if table.CanPreInsert {
-			err = ptr.(PreInserter).PreInsert(exec)
+			err = ptr.(PreInserter).PreInsert(e)
 			if err != nil {
 				return err
 			}
@@ -399,7 +328,7 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 		bi := table.bindInsert(elem)
 
 		if bi.autoIncrIdx > -1 {
-			id, err := m.Dialect.InsertAutoIncr(exec, bi.query, bi.args...)
+			id, err := m.Dialect.InsertAutoIncr(e, bi.query, bi.args...)
 			if err != nil {
 				return err
 			}
@@ -411,14 +340,14 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 				return fmt.Errorf("modl: Cannot set autoincrement value on non-Int field. SQL=%s  autoIncrIdx=%d", bi.query, bi.autoIncrIdx)
 			}
 		} else {
-			_, err := exec.Exec(bi.query, bi.args...)
+			_, err := e.Exec(bi.query, bi.args...)
 			if err != nil {
 				return err
 			}
 		}
 
 		if table.CanPostInsert {
-			err = ptr.(PostInserter).PostInsert(exec)
+			err = ptr.(PostInserter).PostInsert(e)
 			if err != nil {
 				return err
 			}
@@ -427,10 +356,10 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 	return nil
 }
 
-func lockError(m *DbMap, exec SqlExecutor, tableName string, existingVer int64, elem reflect.Value, keys ...interface{}) (int64, error) {
+func lockError(m *DbMap, e SqlExecutor, tableName string, existingVer int64, elem reflect.Value, keys ...interface{}) (int64, error) {
 
 	dest := reflect.New(elem.Type()).Interface()
-	err := get(m, exec, dest, keys...)
+	err := get(m, e, dest, keys...)
 	if err != nil {
 		return -1, err
 	}

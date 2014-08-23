@@ -34,7 +34,7 @@ type Dialect interface {
 	CreateTableSuffix() string
 
 	// InsertAutoIncr
-	InsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error)
+	InsertAutoIncr(e SqlExecutor, insertSql string, params ...interface{}) (int64, error)
 
 	// BindVar returns the variable string to use when forming SQL statements
 	// in many dbs it is "?", but Postgres requires '$#'
@@ -57,8 +57,8 @@ type Dialect interface {
 	DriverName() string
 }
 
-func standardInsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
-	res, err := exec.Exec(insertSql, params...)
+func standardInsertAutoIncr(e SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
+	res, err := e.handle().Exec(insertSql, params...)
 	if err != nil {
 		return 0, err
 	}
@@ -135,8 +135,8 @@ func (d SqliteDialect) BindVar(i int) string {
 }
 
 // InsertAutoIncr runs the standard
-func (d SqliteDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
-	return standardInsertAutoIncr(exec, insertSql, params...)
+func (d SqliteDialect) InsertAutoIncr(e SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
+	return standardInsertAutoIncr(e, insertSql, params...)
 }
 
 // QuoteField quotes f with "" for sqlite
@@ -241,8 +241,8 @@ func (d PostgresDialect) BindVar(i int) string {
 
 // InsertAutoIncr inserts via a query and reads the resultant rows for the new
 // auto increment ID, as it's not returned with the result in PostgreSQL.
-func (d PostgresDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
-	rows, err := exec.query(insertSql, params...)
+func (d PostgresDialect) InsertAutoIncr(e SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
+	rows, err := e.handle().Queryx(insertSql, params...)
 	if err != nil {
 		return 0, err
 	}
@@ -355,8 +355,8 @@ func (d MySQLDialect) BindVar(i int) string {
 
 // InsertAutoIncr runs the standard Insert Exec, which uses LastInsertId to get
 // the value of the auto increment column.
-func (d MySQLDialect) InsertAutoIncr(exec SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
-	return standardInsertAutoIncr(exec, insertSql, params...)
+func (d MySQLDialect) InsertAutoIncr(e SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
+	return standardInsertAutoIncr(e, insertSql, params...)
 }
 
 // QuoteField quotes f using ``.
