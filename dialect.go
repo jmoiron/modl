@@ -35,6 +35,9 @@ type Dialect interface {
 
 	// InsertAutoIncr
 	InsertAutoIncr(e SqlExecutor, insertSql string, params ...interface{}) (int64, error)
+	// InsertAutIncrAny takes a destination for non-integer auto-incr, like
+	// uuids which scan to strings, hashes, etc.
+	InsertAutoIncrAny(e SqlExecutor, insertSql string, dest interface{}, params ...interface{}) error
 
 	// BindVar returns the variable string to use when forming SQL statements
 	// in many dbs it is "?", but Postgres requires '$#'
@@ -63,6 +66,18 @@ func standardInsertAutoIncr(e SqlExecutor, insertSql string, params ...interface
 		return 0, err
 	}
 	return res.LastInsertId()
+}
+
+func standardAutoIncrAny(e SqlExecutor, insertSql string, dest interface{}, params ...interface{}) error {
+	rows, err := e.handle().Queryx(insertSql, params...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		return rows.Scan(dest)
+	}
+	return fmt.Errorf("No auto-incr value returned for insert: `%s` error: %s", insertSql, rows.Err())
 }
 
 // -- sqlite3
@@ -137,6 +152,10 @@ func (d SqliteDialect) BindVar(i int) string {
 // InsertAutoIncr runs the standard
 func (d SqliteDialect) InsertAutoIncr(e SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
 	return standardInsertAutoIncr(e, insertSql, params...)
+}
+
+func (d SqliteDialect) InsertAutoIncrAny(e SqlExecutor, insertSql string, dest interface{}, params ...interface{}) error {
+	return standardAutoIncrAny(e, insertSql, dest, params...)
 }
 
 // QuoteField quotes f with "" for sqlite
@@ -257,6 +276,10 @@ func (d PostgresDialect) InsertAutoIncr(e SqlExecutor, insertSql string, params 
 	return 0, errors.New("No serial value returned for insert: " + insertSql + ", error: " + rows.Err().Error())
 }
 
+func (d PostgresDialect) InsertAutoIncrAny(e SqlExecutor, insertSql string, dest interface{}, params ...interface{}) error {
+	return standardAutoIncrAny(e, insertSql, dest, params...)
+}
+
 // QuoteField quotes f with ""
 func (d PostgresDialect) QuoteField(f string) string {
 	return `"` + sqlx.NameMapper(f) + `"`
@@ -357,6 +380,10 @@ func (d MySQLDialect) BindVar(i int) string {
 // the value of the auto increment column.
 func (d MySQLDialect) InsertAutoIncr(e SqlExecutor, insertSql string, params ...interface{}) (int64, error) {
 	return standardInsertAutoIncr(e, insertSql, params...)
+}
+
+func (d MySQLDialect) InsertAutoIncrAny(e SqlExecutor, insertSql string, dest interface{}, params ...interface{}) error {
+	return standardAutoIncrAny(e, insertSql, dest, params...)
 }
 
 // QuoteField quotes f using ``.
