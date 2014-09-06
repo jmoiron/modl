@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/jmoiron/sqlx/reflectx"
 )
 
 // TableMap represents a mapping between a Go struct and a database table
@@ -22,6 +23,7 @@ type TableMap struct {
 	deletePlan bindPlan
 	getPlan    bindPlan
 	dbmap      *DbMap
+	mapper     *reflectx.Mapper
 	// Cached capabilities for the struct mapped to this table
 	CanPreInsert  bool
 	CanPostInsert bool
@@ -50,6 +52,8 @@ func (t *TableMap) ResetSql() {
 func (t *TableMap) SetKeys(isAutoIncr bool, fieldNames ...string) *TableMap {
 	t.Keys = make([]*ColumnMap, 0)
 	for _, name := range fieldNames {
+		// FIXME: sqlx.NameMapper is a deprecated API.  modl should have its
+		// own API which sets sqlx's mapping funcs as necessary
 		colmap := t.ColMap(sqlx.NameMapper(name))
 		colmap.isPK = true
 		colmap.isAutoIncr = isAutoIncr
@@ -64,24 +68,13 @@ func (t *TableMap) SetKeys(isAutoIncr bool, fieldNames ...string) *TableMap {
 // name.  It panics if the struct does not contain a field matching this
 // name.
 func (t *TableMap) ColMap(field string) *ColumnMap {
-	col := colMapOrNil(t, field)
-	if col == nil {
-		e := fmt.Sprintf("No ColumnMap in table %s type %s with field %s",
-			t.TableName, t.gotype.Name(), field)
-
-		panic(e)
-	}
-	return col
-}
-
-// Return the column map for this field, or nil if it can't be found.
-func colMapOrNil(t *TableMap, field string) *ColumnMap {
 	for _, col := range t.Columns {
 		if col.fieldName == field || col.ColumnName == field {
 			return col
 		}
 	}
-	return nil
+	panic(fmt.Sprintf("No ColumnMap in table %s type %s with field %s",
+		t.TableName, t.gotype.Name(), field))
 }
 
 // SetVersionCol sets the column to use as the Version field.  By default
