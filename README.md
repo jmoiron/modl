@@ -93,7 +93,7 @@ The test suite is continuously run against all of these databases.
 
 ## Documentation
 
-API Documentation is available on [godoc](http://godoc.org).
+API Documentation is available on [godoc](https://godoc.org/github.com/jmoiron/modl).
 
 ## Performance ##
 
