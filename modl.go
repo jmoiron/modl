@@ -125,7 +125,10 @@ type SqlExecutor interface {
 
 // Compile-time check that DbMap and Transaction implement the SqlExecutor
 // interface.
-var _, _ SqlExecutor = &DbMap{}, &Transaction{}
+var (
+        _ SqlExecutor = &DbMap{}
+        _ SqlExecutor = &Transaction{}
+)
 
 ///////////////
 
@@ -203,7 +206,7 @@ func get(m *DbMap, e SqlExecutor, dest interface{}, keys ...interface{}) error {
 	return nil
 }
 
-func delete(m *DbMap, e SqlExecutor, list ...interface{}) (int64, error) {
+func deletes(m *DbMap, e SqlExecutor, list ...interface{}) (int64, error) {
 	var err error
 	var table *TableMap
 	var elem reflect.Value
