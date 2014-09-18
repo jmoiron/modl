@@ -287,7 +287,7 @@ func (m *DbMap) Update(list ...interface{}) (int64, error) {
 // Returns an error if SetKeys has not been called on the TableMap or if
 // any interface in the list has not been registered with AddTable
 func (m *DbMap) Delete(list ...interface{}) (int64, error) {
-	return delete(m, m, list...)
+	return deletes(m, m, list...)
 }
 
 // Get runs a SQL SELECT to fetch a single row from the table based on the

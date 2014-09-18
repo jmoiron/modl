@@ -27,7 +27,7 @@ func (t *Transaction) Update(list ...interface{}) (int64, error) {
 
 // Delete has the same behavior as DbMap.Delete(), but runs in a transaction.
 func (t *Transaction) Delete(list ...interface{}) (int64, error) {
-	return delete(t.dbmap, t, list...)
+	return deletes(t.dbmap, t, list...)
 }
 
 // Get has the Same behavior as DbMap.Get(), but runs in a transaction.
