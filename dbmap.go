@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/jmoiron/sqlx/reflectx"
 )
 
 // TableNameMapper is the function used by AddTable to map struct names to database table names, in analogy
@@ -45,11 +46,17 @@ type DbMap struct {
 	tables    []*TableMap
 	logger    *log.Logger
 	logPrefix string
+	mapper    *reflectx.Mapper
 }
 
-// NewDbMap returns a new DbMap using the db connection and dialect
+// NewDbMap returns a new DbMap using the db connection and dialect.
 func NewDbMap(db *sql.DB, dialect Dialect) *DbMap {
-	return &DbMap{Db: db, Dialect: dialect, Dbx: sqlx.NewDb(db, dialect.DriverName())}
+	return &DbMap{
+		Db:      db,
+		Dialect: dialect,
+		Dbx:     sqlx.NewDb(db, dialect.DriverName()),
+		mapper:  reflectx.NewMapperFunc("db", sqlx.NameMapper),
+	}
 }
 
 // TraceOn turns on SQL statement logging for this DbMap.  After this is
@@ -101,7 +108,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 		}
 	}
 
-	tmap := &TableMap{gotype: t, TableName: Name, dbmap: m}
+	tmap := &TableMap{gotype: t, TableName: Name, dbmap: m, mapper: m.mapper}
 	tmap.setupHooks(i)
 
 	n := t.NumField()
@@ -118,6 +125,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 			Transient:  columnName == "-",
 			fieldName:  f.Name,
 			gotype:     f.Type,
+			table:      tmap,
 		}
 		tmap.Columns = append(tmap.Columns, cm)
 		if cm.fieldName == "Version" {
@@ -159,16 +167,19 @@ func (m *DbMap) CreateTablesIfNotExists() error {
 	return err
 }
 
-func writeColumnSql(sql *bytes.Buffer, table *TableMap, col *ColumnMap) {
-	// FIXME: Why can't the column have a reference to its own table as well
+func writeColumnSql(sql *bytes.Buffer, col *ColumnMap) {
+	if len(col.createSql) > 0 {
+		sql.WriteString(col.createSql)
+		return
+	}
 	sqltype := col.sqltype
 	if len(sqltype) == 0 {
-		sqltype = table.dbmap.Dialect.ToSqlType(col)
+		sqltype = col.table.dbmap.Dialect.ToSqlType(col)
 	}
-	sql.WriteString(fmt.Sprintf("%s %s", table.dbmap.Dialect.QuoteField(col.ColumnName), sqltype))
+	sql.WriteString(fmt.Sprintf("%s %s", col.table.dbmap.Dialect.QuoteField(col.ColumnName), sqltype))
 	if col.isPK {
 		sql.WriteString(" not null")
-		if len(table.Keys) == 1 {
+		if len(col.table.Keys) == 1 {
 			sql.WriteString(" primary key")
 		}
 	}
@@ -176,7 +187,7 @@ func writeColumnSql(sql *bytes.Buffer, table *TableMap, col *ColumnMap) {
 		sql.WriteString(" unique")
 	}
 	if col.isAutoIncr {
-		sql.WriteString(" " + table.dbmap.Dialect.AutoIncrStr())
+		sql.WriteString(" " + col.table.dbmap.Dialect.AutoIncrStr())
 	}
 }
 
@@ -211,7 +222,7 @@ func (m *DbMap) createTables(ifNotExists, exec bool) (map[string]string, error) 
 					s.WriteString(sep)
 				}
 				s.WriteString(prefix)
-				writeColumnSql(&s, table, col)
+				writeColumnSql(&s, col)
 				x++
 			}
 		}

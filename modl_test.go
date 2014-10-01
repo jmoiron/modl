@@ -265,6 +265,26 @@ func TestDoubleAddTable(t *testing.T) {
 	}
 }
 
+// test overriding the create sql
+func TestColMapCreateSql(t *testing.T) {
+	dbmap := newDbMap()
+	t1 := dbmap.AddTable(TableWithNull{})
+	b := t1.ColMap("Bytes")
+	custom := "bytes text NOT NULL"
+	b.SetSqlCreate(custom)
+	var buf bytes.Buffer
+	writeColumnSql(&buf, b)
+	s := buf.String()
+	if s != custom {
+		t.Errorf("Expected custom sql `%s`, got %s", custom, s)
+	}
+	err := dbmap.CreateTables()
+	defer dbmap.Cleanup()
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 // what happens if a legacy table has a null value?
 func TestNullValues(t *testing.T) {
 	dbmap := initDbMapNulls()

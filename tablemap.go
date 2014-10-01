@@ -306,9 +306,13 @@ type ColumnMap struct {
 	// correct column type to map to in CreateTables()
 	MaxSize int
 
+	// the table this column belongs to
+	table *TableMap
+
 	fieldName  string
 	gotype     reflect.Type
 	sqltype    string
+	createSql  string
 	isPK       bool
 	isAutoIncr bool
 }
@@ -324,6 +328,14 @@ func (c *ColumnMap) SetTransient(b bool) *ColumnMap {
 // will be added to create table statements for this column.
 func (c *ColumnMap) SetUnique(b bool) *ColumnMap {
 	c.Unique = b
+	return c
+}
+
+// SetSqlCreate overrides the default create statement used when this column
+// is created by CreateTable.  This will override all other options (like
+// SetMaxSize, SetSqlType, etc).  To unset, call with the empty string.
+func (c *ColumnMap) SetSqlCreate(s string) *ColumnMap {
+	c.createSql = s
 	return c
 }
 
