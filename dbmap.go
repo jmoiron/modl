@@ -377,8 +377,8 @@ func (m *DbMap) Begin() (*Transaction, error) {
 // function should be TableFor(i interface{}) (*TableMap, error)
 // FIXME: rewrite this in terms of sqlx's reflect helpers
 
-// TableFor returns any matching tables for the interface i or nil if not found
-// If i is a slice, then the table is given for the base slice type
+// TableFor returns any matching tables for the interface i or nil if not found.
+// If i is a slice, then the table is given for the base slice type.
 func (m *DbMap) TableFor(i interface{}) *TableMap {
 	var t reflect.Type
 	v := reflect.ValueOf(i)
@@ -403,7 +403,7 @@ start:
 
 // FIXME: returning a nil pointer is not go-like;  return (*TableMap, err) instead.
 
-// TableForType returns any matching tables for the type t or nil if not found
+// TableForType returns any matching tables for the type t or nil if not found.
 func (m *DbMap) TableForType(t reflect.Type) *TableMap {
 	for _, table := range m.tables {
 		if table.gotype == t {
@@ -413,7 +413,7 @@ func (m *DbMap) TableForType(t reflect.Type) *TableMap {
 	return nil
 }
 
-// TruncateTables truncates all tables in the DbMap
+// TruncateTables truncates all tables in the DbMap.
 func (m *DbMap) TruncateTables() error {
 	return m.truncateTables(false)
 }
