@@ -237,12 +237,11 @@ func (t *TableMap) bindUpdate(elem reflect.Value) bindInstance {
 func (t *TableMap) bindInsert(elem reflect.Value) bindInstance {
 	plan := t.insertPlan
 	if plan.query == "" {
-		plan.autoIncrIdx = -1
-
 		s := bytes.Buffer{}
 		s2 := bytes.Buffer{}
 		s.WriteString(fmt.Sprintf("insert into %s (", t.dbmap.Dialect.QuoteField(t.TableName)))
 
+		var autoIncrCol *ColumnMap
 		x := 0
 		first := true
 		for y := range t.Columns {
@@ -257,7 +256,8 @@ func (t *TableMap) bindInsert(elem reflect.Value) bindInstance {
 
 				if col.isAutoIncr {
 					s2.WriteString(t.dbmap.Dialect.AutoIncrBindValue())
-					plan.autoIncrIdx = y
+					plan.autoIncrIdx = col.fieldIdx
+					autoIncrCol = col
 				} else {
 					s2.WriteString(t.dbmap.Dialect.BindVar(x))
 					if col == t.version {
@@ -276,8 +276,8 @@ func (t *TableMap) bindInsert(elem reflect.Value) bindInstance {
 		s.WriteString(") values (")
 		s.WriteString(s2.String())
 		s.WriteString(")")
-		if plan.autoIncrIdx > -1 {
-			s.WriteString(t.dbmap.Dialect.AutoIncrInsertSuffix(t.Columns[plan.autoIncrIdx]))
+		if autoIncrCol != nil {
+			s.WriteString(t.dbmap.Dialect.AutoIncrInsertSuffix(autoIncrCol))
 		}
 		s.WriteString(";")
 
@@ -310,6 +310,7 @@ type ColumnMap struct {
 	table *TableMap
 
 	fieldName  string
+	fieldIdx   []int // Go struct field index from table's struct
 	gotype     reflect.Type
 	sqltype    string
 	createSql  string

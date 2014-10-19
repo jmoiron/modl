@@ -111,7 +111,7 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 	tmap := &TableMap{gotype: t, TableName: Name, dbmap: m, mapper: m.mapper}
 	tmap.setupHooks(i)
 
-	tmap.Columns = columnMaps(t, tmap)
+	tmap.Columns = columnMaps(t, tmap, nil)
 	for _, cm := range tmap.Columns {
 		if cm.fieldName == "Version" {
 			tmap.version = cm
@@ -123,13 +123,13 @@ func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 
 }
 
-func columnMaps(t reflect.Type, tmap *TableMap) []*ColumnMap {
+func columnMaps(t reflect.Type, tmap *TableMap, parentFieldIdx []int) []*ColumnMap {
 	var cols []*ColumnMap
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		name := f.Tag.Get("db")
 		if f.Anonymous {
-			cols = append(cols, columnMaps(f.Type, tmap)...)
+			cols = append(cols, columnMaps(f.Type, tmap, makeFieldIdx(parentFieldIdx, i))...)
 		} else {
 			if name == "" {
 				name = sqlx.NameMapper(f.Name)
@@ -138,12 +138,22 @@ func columnMaps(t reflect.Type, tmap *TableMap) []*ColumnMap {
 				ColumnName: name,
 				Transient:  name == "-",
 				fieldName:  f.Name,
+				fieldIdx:   makeFieldIdx(parentFieldIdx, i),
 				gotype:     f.Type,
 				table:      tmap,
 			})
 		}
 	}
 	return cols
+}
+
+// makeFieldIdx returns a new slice whose elements are equal to
+// append(parent, i).
+func makeFieldIdx(parent []int, i int) []int {
+	s := make([]int, len(parent)+1)
+	copy(s, parent)
+	s[len(s)-1] = i
+	return s
 }
 
 // AddTableWithName adds a new mapping of the interface to a table name.

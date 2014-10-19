@@ -65,7 +65,7 @@ type bindPlan struct {
 	argFields   []string
 	keyFields   []string
 	versField   string
-	autoIncrIdx int
+	autoIncrIdx []int // Go struct field index
 }
 
 func (plan bindPlan) createBindInstance(elem reflect.Value) bindInstance {
@@ -103,7 +103,7 @@ type bindInstance struct {
 	keys            []interface{}
 	existingVersion int64
 	versField       string
-	autoIncrIdx     int
+	autoIncrIdx     []int // the autoincr. column's Go struct field index
 }
 
 // SqlExecutor exposes modl operations that can be run from Pre/Post
@@ -330,12 +330,12 @@ func insert(m *DbMap, e SqlExecutor, list ...interface{}) error {
 
 		bi := table.bindInsert(elem)
 
-		if bi.autoIncrIdx > -1 {
+		if bi.autoIncrIdx != nil {
 			id, err := m.Dialect.InsertAutoIncr(e, bi.query, bi.args...)
 			if err != nil {
 				return err
 			}
-			f := elem.Field(bi.autoIncrIdx)
+			f := elem.FieldByIndex(bi.autoIncrIdx)
 			k := f.Kind()
 			if (k == reflect.Int) || (k == reflect.Int16) || (k == reflect.Int32) || (k == reflect.Int64) {
 				f.SetInt(id)

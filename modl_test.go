@@ -631,6 +631,70 @@ func TestWithEmbeddedStruct(t *testing.T) {
 	}
 }
 
+func TestWithEmbeddedStructAutoIncrColNotFirst(t *testing.T) {
+	// Tests that the tablemap retains separate indices for SQL
+	// columns (which are flattened with respect to struct embedding)
+	// and Go fields (which are not). In this test case, the
+	// auto-incremented column is the 3rd column in SQL but the 2nd Go
+	// field.
+
+	type Embedded struct{ A, B string }
+	type withAutoIncrColNotFirst struct {
+		Embedded
+		ID int
+	}
+
+	dbmap := newDbMap()
+	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
+	dbmap.AddTableWithName(withAutoIncrColNotFirst{}, "auto_incr_col_not_first_test").SetKeys(true, "ID")
+	if err := dbmap.CreateTables(); err != nil {
+		t.Errorf("couldn't create auto_incr_col_not_first_test: %v", err)
+	}
+	defer dbmap.Cleanup()
+
+	row := withAutoIncrColNotFirst{Embedded: Embedded{A: "a"}, ID: 0}
+	if err := dbmap.Insert(&row); err != nil {
+		t.Fatal(err)
+	}
+
+	var got withAutoIncrColNotFirst
+	if err := dbmap.Get(&got, row.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got != row {
+		t.Errorf("Got %+v, want %+v", got, row)
+	}
+}
+
+func TestWithEmbeddedAutoIncrCol(t *testing.T) {
+	type EmbeddedID struct {
+		A  string
+		ID int
+	}
+	type embeddedAutoIncrCol struct{ EmbeddedID }
+
+	dbmap := newDbMap()
+	//dbmap.TraceOn("", log.New(os.Stdout, "modltest: ", log.Lmicroseconds))
+	dbmap.AddTableWithName(embeddedAutoIncrCol{}, "embedded_auto_incr_col_test").SetKeys(true, "ID")
+	if err := dbmap.CreateTables(); err != nil {
+		t.Errorf("couldn't create embedded_auto_incr_col_test: %v", err)
+	}
+	defer dbmap.Cleanup()
+
+	row := embeddedAutoIncrCol{EmbeddedID{A: "a", ID: 0}}
+	if err := dbmap.Insert(&row); err != nil {
+		t.Fatal(err)
+	}
+
+	var got embeddedAutoIncrCol
+	if err := dbmap.Get(&got, row.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got != row {
+		t.Errorf("Got %+v, want %+v", got, row)
+	}
+}
+
 func BenchmarkNativeCrud(b *testing.B) {
 	var err error
 
