@@ -85,7 +85,7 @@ func (m *DbMap) TraceOff() {
 // will be given the name of the TypeOf(i), lowercased.
 //
 // This operation is idempotent. If i's type is already mapped, the
-// existing *TableMap is returned
+// existing *TableMap is returned.
 func (m *DbMap) AddTable(i interface{}, name ...string) *TableMap {
 	Name := ""
 	if len(name) > 0 {
@@ -162,7 +162,7 @@ func (m *DbMap) AddTableWithName(i interface{}, name string) *TableMap {
 }
 
 // CreateTablesSql returns create table SQL as a map of table names to
-// their associated CREATE TABLE statements
+// their associated CREATE TABLE statements.
 func (m *DbMap) CreateTablesSql() (map[string]string, error) {
 	return m.createTables(false, false)
 }
@@ -179,7 +179,7 @@ func (m *DbMap) CreateTables() error {
 
 // CreateTablesIfNotExists is similar to CreateTables, but starts
 // each statement with "create table if not exists" so that existing
-// tables do not raise errors
+// tables do not raise errors.
 func (m *DbMap) CreateTablesIfNotExists() error {
 	_, err := m.createTables(true, true)
 	return err
@@ -283,7 +283,7 @@ func (m *DbMap) DropTables() error {
 
 // Insert runs a SQL INSERT statement for each element in list.  List
 // items must be pointers, because any interface whose TableMap has an
-// auto-increment PK will have its insert Id bound to the PK struct field,
+// auto-increment PK will have its insert Id bound to the PK struct field.
 //
 // Hook functions PreInsert() and/or PostInsert() will be executed
 // before/after the INSERT statement if the interface defines them.
@@ -297,10 +297,10 @@ func (m *DbMap) Insert(list ...interface{}) error {
 // Hook functions PreUpdate() and/or PostUpdate() will be executed
 // before/after the UPDATE statement if the interface defines them.
 //
-// Returns number of rows updated
+// Returns number of rows updated.
 //
 // Returns an error if SetKeys has not been called on the TableMap or if
-// any interface in the list has not been registered with AddTable
+// any interface in the list has not been registered with AddTable.
 func (m *DbMap) Update(list ...interface{}) (int64, error) {
 	return update(m, m, list...)
 }
@@ -311,10 +311,10 @@ func (m *DbMap) Update(list ...interface{}) (int64, error) {
 // Hook functions PreDelete() and/or PostDelete() will be executed
 // before/after the DELETE statement if the interface defines them.
 //
-// Returns number of rows deleted
+// Returns number of rows deleted.
 //
 // Returns an error if SetKeys has not been called on the TableMap or if
-// any interface in the list has not been registered with AddTable
+// any interface in the list has not been registered with AddTable.
 func (m *DbMap) Delete(list ...interface{}) (int64, error) {
 	return deletes(m, m, list...)
 }
@@ -322,18 +322,18 @@ func (m *DbMap) Delete(list ...interface{}) (int64, error) {
 // Get runs a SQL SELECT to fetch a single row from the table based on the
 // primary key(s)
 //
-//  i should be an empty value for the struct to load
-//  keys should be the primary key value(s) for the row to load.  If
-//  multiple keys exist on the table, the order should match the column
-//  order specified in SetKeys() when the table mapping was defined.
+// dest should be an empty value for the struct to load.
+// keys should be the primary key value(s) for the row to load.  If
+// multiple keys exist on the table, the order should match the column
+// order specified in SetKeys() when the table mapping was defined.
 //
 // Hook function PostGet() will be executed
-// after the SELECT statement if the interface defines them.
+// after the SELECT statement if the interface defines it.
 //
-// Returns a pointer to a struct that matches or nil if no row is found
+// Returns a pointer to a struct that matches or nil if no row is found.
 //
 // Returns an error if SetKeys has not been called on the TableMap or
-// if any interface in the list has not been registered with AddTable
+// if any interface in the list has not been registered with AddTable.
 func (m *DbMap) Get(dest interface{}, keys ...interface{}) error {
 	return get(m, m, dest, keys...)
 }
@@ -343,20 +343,22 @@ func (m *DbMap) Get(dest interface{}, keys ...interface{}) error {
 // parameters for the SQL statement.
 //
 // Column names on the SELECT statement should be aliased to the field names
-// on the struct i. Returns an error if one or more columns in the result
+// on the struct dest. Returns an error if one or more columns in the result
 // do not match.  It is OK if fields on i are not part of the SQL
 // statement.
 //
 // Hook function PostGet() will be executed
-// after the SELECT statement if the interface defines them.
+// after the SELECT statement if the interface defines it.
 //
 // Values are returned in one of two ways:
-// 1. If i is a struct or a pointer to a struct, returns a slice of pointers to
-//    matching rows of type i.
-// 2. If i is a pointer to a slice, the results will be appended to that slice
-//    and nil returned.
 //
-// i does NOT need to be registered with AddTable()
+// 1. If dest is a struct or a pointer to a struct, returns a slice of pointers to
+// matching rows of type dest.
+//
+// 2. If dest is a pointer to a slice, the results will be appended to that slice
+// and nil returned.
+//
+// dest does NOT need to be registered with AddTable().
 func (m *DbMap) Select(dest interface{}, query string, args ...interface{}) error {
 	return hookedselect(m, m, dest, query, args...)
 }
@@ -368,7 +370,7 @@ func (m *DbMap) SelectOne(dest interface{}, query string, args ...interface{}) e
 }
 
 // Exec runs an arbitrary SQL statement.  args represent the bind parameters.
-// This is equivalent to running Exec() using database/sql
+// This is equivalent to running Exec() using database/sql.
 func (m *DbMap) Exec(query string, args ...interface{}) (sql.Result, error) {
 	m.trace(query, args)
 	//stmt, err := m.Db.Prepare(query)
@@ -379,7 +381,7 @@ func (m *DbMap) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return m.Db.Exec(query, args...)
 }
 
-// Begin starts a modl Transaction
+// Begin starts a modl Transaction.
 func (m *DbMap) Begin() (*Transaction, error) {
 	m.trace("begin;")
 	tx, err := m.Dbx.Beginx()
@@ -393,8 +395,8 @@ func (m *DbMap) Begin() (*Transaction, error) {
 // function should be TableFor(i interface{}) (*TableMap, error)
 // FIXME: rewrite this in terms of sqlx's reflect helpers
 
-// TableFor returns any matching tables for the interface i or nil if not found
-// If i is a slice, then the table is given for the base slice type
+// TableFor returns any matching tables for the interface i or nil if not found.
+// If i is a slice, then the table is given for the base slice type.
 func (m *DbMap) TableFor(i interface{}) *TableMap {
 	var t reflect.Type
 	v := reflect.ValueOf(i)
@@ -419,7 +421,7 @@ start:
 
 // FIXME: returning a nil pointer is not go-like;  return (*TableMap, err) instead.
 
-// TableForType returns any matching tables for the type t or nil if not found
+// TableForType returns any matching tables for the type t or nil if not found.
 func (m *DbMap) TableForType(t reflect.Type) *TableMap {
 	for _, table := range m.tables {
 		if table.gotype == t {
@@ -429,7 +431,7 @@ func (m *DbMap) TableForType(t reflect.Type) *TableMap {
 	return nil
 }
 
-// TruncateTables truncates all tables in the DbMap
+// TruncateTables truncates all tables in the DbMap.
 func (m *DbMap) TruncateTables() error {
 	return m.truncateTables(false)
 }
