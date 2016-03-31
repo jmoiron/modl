@@ -366,7 +366,7 @@ func tableForPointer(m *DbMap, i interface{}, checkPk bool) (*TableMap, reflect.
 	v = v.Elem()
 	t := m.TableForType(v.Type())
 	if t == nil {
-		return nil, v, fmt.Errorf("could not find table for %v", t)
+		return nil, v, fmt.Errorf("could not find table for %v", v.Type())
 	}
 	if checkPk && len(t.Keys) < 1 {
 		return t, v, &NoKeysErr{t}
