@@ -149,6 +149,12 @@ func (m *DbMap) CreateTablesSql() (map[string]string, error) {
 	return m.createTables(false, false)
 }
 
+// CreateTablesIfNotExistsSql returns create table SQL as a map of table names to
+// their associated CREATE TABLE IF NOT EXISTS statements.
+func (m *DbMap) CreateTablesIfNotExistsSql() (map[string]string, error) {
+	return m.createTables(true, false)
+}
+
 // CreateTables iterates through TableMaps registered to this DbMap and
 // executes "create table" statements against the database for each.
 //
